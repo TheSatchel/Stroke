@@ -1,0 +1,65 @@
+"#!/usr/bin/env bash
+# ============================================================
+#  FastAPI Jinja2 PWA 启动脚本 (Linux / macOS)
+# ============================================================
+
+set -e
+
+cd "$(dirname "$0")"
+
+check_python() {
+    if ! command -v python3 &>/dev/null; then
+        echo "[错误] 未找到 Python3，请先安装 Python 3.10+"
+        exit 1
+    fi
+}
+
+show_menu() {
+    echo "========================================"
+    echo "  FastAPI Jinja2 PWA"
+    echo "========================================"
+    echo "  1. 开发模式 (uvicorn --reload)"
+    echo "  2. 生产模式 (Gunicorn + Uvicorn)"
+    echo "  3. 安装依赖"
+    echo "  4. 退出"
+    echo "========================================"
+    read -rp "请选择 [1-4]: " choice
+}
+
+install_deps() {
+    echo ""
+    echo "[安装依赖...]"
+    pip install -r requirements.txt
+    read -rp "按 Enter 继续..."
+}
+
+run_dev() {
+    echo ""
+    echo "[开发模式]"
+    python3 development.py
+    read -rp "按 Enter 继续..."
+}
+
+run_prod() {
+    echo ""
+    echo "[生产模式]"
+    python3 serve.py
+    read -rp "按 Enter 继续..."
+}
+
+main() {
+    check_python
+    while true; do
+        show_menu
+        case "$choice" in
+            1) run_dev ;;
+            2) run_prod ;;
+            3) install_deps ;;
+            4) exit 0 ;;
+            *) echo "无效选择"; sleep 1 ;;
+        esac
+    done
+}
+
+main
+"

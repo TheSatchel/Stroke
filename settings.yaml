@@ -1,0 +1,42 @@
+# ============================================================
+# FastAPI Jinja2 PWA 配置文件
+# ============================================================
+
+app:
+  name: "Stroke"
+  version: "0.1.0"
+  debug: true
+
+server:
+  host: "127.0.0.1"
+  port: 8000
+  workers: 4
+
+# PWA 配置
+pwa:
+  name: "Stroke"
+  short_name: "Stroke"
+  description: "Stroke is an AI image generation workspace with swift history recall and flexible toolchain. | Stroke 是一个 AI 图像生成工作区，快速切换历史记录，灵活调整工具链。"
+  theme_color: "#000000"
+  background_color: "#000000"
+  display: "standalone"          # standalone | fullscreen | minimal-ui | browser
+  orientation: "portrait-primary"
+  start_url: "/"
+  scope: "/"
+  icons:
+    - src: "/static/img/icon-192x192.png"
+      sizes: "192x192"
+      type: "image/png"
+    - src: "/static/img/icon-512x512.png"
+      sizes: "512x512"
+      type: "image/png"
+    - src: "/static/img/icon-512x512-maskable.png"
+      sizes: "512x512"
+      type: "image/png"
+      purpose: "maskable"
+
+# 路由页面配置
+pages:
+  home:
+    title: "Stroke"
+    description: "Swift strokes, infinite creations. | 一笔即画，创意无限。"

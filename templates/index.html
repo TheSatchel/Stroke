@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }} — {{ APP_NAME }}</title>
+  <meta name="description" content="{{ description }}">
+
+  <!-- PWA -->
+  <meta name="theme-color" content="{{ PWA_THEME_COLOR }}">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="{{ PWA_NAME }}">
+  <link rel="apple-touch-icon" href="/static/img/icon-192x192.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="/static/img/icon-512x512.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/img/icon-192x192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/static/img/icon-512x512.png">
+  <link rel="mask-icon" href="/static/img/icon-512x512-maskable.png" color="{{ PWA_THEME_COLOR }}">
+  <link rel="manifest" href="/manifest.json">
+
+  <!-- CSS Variables (workspace design tokens) -->
+  <style>
+    :root {
+      --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      --color-background-primary: #1e1e2e;
+      --color-background-secondary: #181825;
+      --color-background-tertiary: #11111b;
+      --color-text-primary: #cdd6f4;
+      --color-text-secondary: #a6adc8;
+      --color-text-tertiary: #6c7086;
+      --color-border-primary: #b4befe;
+      --color-border-secondary: #45475a;
+      --color-border-tertiary: #313244;
+      --border-radius-md: 8px;
+      --border-radius-lg: 12px;
+    }
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+    }
+  </style>
+
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/workspace.css">
+</head>
+<body>
+
+<h2 class="sr-only">图像生成工作台：配置面板可拖拽排序，点击生成时自动收纳，生成完成后展开回原位</h2>
+
+<div id="app"></div>
+
+<script src="/static/js/uis.js"></script>
+<script src="/static/js/pwa.js"></script>
+<script src="/static/js/main.js"></script>
+</body>
+</html>
