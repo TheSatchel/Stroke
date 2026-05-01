@@ -22,25 +22,86 @@
   <style>
     :root {
       --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-      --color-background-primary: #1e1e2e;
-      --color-background-secondary: #181825;
-      --color-background-tertiary: #11111b;
-      --color-text-primary: #cdd6f4;
-      --color-text-secondary: #a6adc8;
-      --color-text-tertiary: #6c7086;
-      --color-border-primary: #b4befe;
-      --color-border-secondary: #45475a;
-      --color-border-tertiary: #313244;
+
+      /* ---- Radii ---- */
       --border-radius-md: 8px;
       --border-radius-lg: 12px;
     }
+    /* 所有颜色变量由 SettingsModal.js 中的 applyFullScheme() 动态注入 */
+
     .sr-only {
       position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
       overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
     }
   </style>
 
-  <link rel="stylesheet" href="/static/css/style.css">
+  <!-- 同步加载主题偏好，防止页面闪烁 -->
+  <script>
+    (function(){
+      var accent, mode;
+      try {
+        accent = localStorage.getItem('stroke_theme_accent') || '#534AB7';
+        mode   = localStorage.getItem('stroke_theme_mode')   || 'system';
+      } catch(e) { accent = '#534AB7'; mode = 'system'; }
+
+      function hexToHsl(hex) {
+        var r=0,g=0,b=0; hex=hex.replace('#','');
+        if(hex.length===3){r=parseInt(hex[0]+hex[0],16);g=parseInt(hex[1]+hex[1],16);b=parseInt(hex[2]+hex[2],16);}
+        else{r=parseInt(hex.substring(0,2),16);g=parseInt(hex.substring(2,4),16);b=parseInt(hex.substring(4,6),16);}
+        r/=255;g/=255;b/=255;var mx=Math.max(r,g,b),mn=Math.min(r,g,b),h=0,s=0,l=(mx+mn)/2;
+        if(mx!==mn){var d=mx-mn;s=l>.5?d/(2-mx-mn):d/(mx+mn);h=((mx===r?((g-b)/d+(g<b?6:0)):mx===g?((b-r)/d+2):((r-g)/d+4))/6)*360;}
+        return{h:Math.round(h),s:Math.round(s*100),l:Math.round(l*100)};
+      }
+
+      function accentVars(hex){
+        var hsl=hexToHsl(hex),h=hsl.h,s=hsl.s,l=hsl.l,r=document.documentElement.style;
+        r.setProperty('--color-accent',hex);
+        r.setProperty('--color-accent-hover','hsl('+h+','+s+'%,'+Math.max(5,l-14)+'%)');
+        r.setProperty('--color-accent-ring','hsl('+h+','+s+'%,'+Math.min(90,l+13)+'%)');
+        r.setProperty('--color-accent-bg','hsl('+h+','+s+'%,'+Math.min(97,l+41)+'%)');
+        r.setProperty('--color-accent-border','hsl('+h+','+s+'%,'+Math.min(92,l+20)+'%)');
+        r.setProperty('--color-accent-text','hsl('+h+','+s+'%,'+Math.max(8,l-27)+'%)');
+        r.setProperty('--color-accent-shadow','hsla('+h+','+s+'%,'+l+'%,0.12)');
+        r.setProperty('--color-accent-shadow-active','hsla('+h+','+s+'%,'+Math.max(5,l-4)+'%,0.20)');
+      }
+
+      function baseVars(hex,isDark){
+        var hsl=hexToHsl(hex),h=hsl.h,s=hsl.s,r=document.documentElement.style;
+        r.setProperty('--color-background-primary',isDark?'hsl('+h+','+Math.round(s*.12)+'%,12%)':'hsl('+h+','+Math.round(s*.15)+'%,94%)');
+        r.setProperty('--color-background-secondary',isDark?'hsl('+h+','+Math.round(s*.10)+'%,9%)':'hsl('+h+','+Math.round(s*.12)+'%,90%)');
+        r.setProperty('--color-background-tertiary',isDark?'hsl('+h+','+Math.round(s*.08)+'%,6%)':'hsl('+h+','+Math.round(s*.10)+'%,86%)');
+        r.setProperty('--color-text-primary',isDark?'hsl('+h+','+Math.round(s*.08)+'%,88%)':'hsl('+h+','+Math.round(s*.12)+'%,28%)');
+        r.setProperty('--color-text-secondary',isDark?'hsl('+h+','+Math.round(s*.06)+'%,72%)':'hsl('+h+','+Math.round(s*.10)+'%,38%)');
+        r.setProperty('--color-text-tertiary',isDark?'hsl('+h+','+Math.round(s*.05)+'%,56%)':'hsl('+h+','+Math.round(s*.09)+'%,43%)');
+        r.setProperty('--color-border-primary',isDark?'hsl('+h+','+Math.round(s*.70)+'%,65%)':'hsl('+h+','+Math.round(s*.80)+'%,45%)');
+        r.setProperty('--color-border-secondary',isDark?'hsl('+h+','+Math.round(s*.10)+'%,30%)':'hsl('+h+','+Math.round(s*.12)+'%,76%)');
+        r.setProperty('--color-border-tertiary',isDark?'hsl('+h+','+Math.round(s*.08)+'%,22%)':'hsl('+h+','+Math.round(s*.10)+'%,80%)');
+        r.setProperty('--color-overlay',isDark?'rgba(0,0,0,0.55)':'rgba(0,0,0,0.35)');
+        r.setProperty('--color-context-menu',isDark?`hsla(${h},${Math.round(s*.10)}%,14%,0.88)`:`hsla(${h},${Math.round(s*.15)}%,94%,0.86)`);
+        r.setProperty('--color-context-menu-dark',isDark?`hsla(${h},${Math.round(s*.10)}%,14%,0.88)`:`hsla(${h},${Math.round(s*.15)}%,94%,0.86)`);
+        r.setProperty('--color-white','#ffffff');
+        // success green — fixed hue, saturation/light scale with accent
+        var sSat = Math.round(45 + s * 0.30);
+        var sL = isDark ? Math.round(38 + s * 0.15) : Math.round(28 + s * 0.08);
+        r.setProperty('--color-success', 'hsl('+120+','+sSat+'%,'+sL+'%)');
+        r.setProperty('--color-success-bg', isDark?'hsla(120,'+Math.round(sSat*.8)+'%,35%,0.18)':'hsla(120,'+Math.round(sSat*.9)+'%,35%,0.10)');
+        // danger red — fixed hue, saturation/light scale with accent
+        var dSat = Math.round(52 + s * 0.25);
+        var dL = isDark ? Math.round(48 + s * 0.12) : Math.round(40 + s * 0.06);
+        r.setProperty('--color-danger', 'hsl('+5+','+dSat+'%,'+dL+'%)');
+        r.setProperty('--color-danger-hover', 'hsl('+5+','+dSat+'%,'+(Math.max(20,dL-13))+'%)');
+        r.setProperty('--color-danger-bg', 'hsla('+5+','+dSat+'%,'+dL+'%,0.12)');
+      }
+
+      var resolvedMode = mode;
+      if (mode === 'system') {
+        resolvedMode = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      accentVars(accent);
+      baseVars(accent, resolvedMode !== 'light');
+    })();
+  </script>
+
   <link rel="stylesheet" href="/static/css/workspace.css">
 </head>
 <body>
@@ -49,7 +110,7 @@
 
 <div id="app"></div>
 
-<script src="/static/js/uis.js"></script>
+<script type="module" src="/static/js/uis.js"></script>
 <script src="/static/js/pwa.js"></script>
 <script src="/static/js/main.js"></script>
 </body>
