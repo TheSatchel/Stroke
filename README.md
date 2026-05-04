@@ -90,12 +90,16 @@ stroke/
 ├── static/
 │   ├── js/
 │   │   ├── main.js              # 入口
-│   │   ├── uis.js               # 模块打包（ESM）
+│   │   ├── ui.js                # 模块入口（挂载 App 到 window）
 │   │   ├── storage.js           # localStorage 抽象
 │   │   ├── pwa.js               # PWA 注册
 │   │   ├── workspace.js         # 工作区协调
+│   │   ├── uis/                 # App 核心 & 生成管线
+│   │   │   ├── App.js           # 根协调器（组件组装 + 事件连线）
+│   │   │   ├── Generator.js     # 生成管线（逐段生成 & lineage 管理）
+│   │   │   ├── persistence.js   # 持久化存取 & 历史删除
+│   │   │   └── fingerprint.js   # 哈希 & 配置指纹纯函数
 │   │   └── components/
-│   │       ├── App.js           # 根协调器
 │   │       ├── Canvas.js        # 画布 & 套索
 │   │       ├── ConfigPanel.js   # 配置面板（拖拽/增删）
 │   │       ├── ConfigTabs.js    # Tab 总管 & prompt 拼接

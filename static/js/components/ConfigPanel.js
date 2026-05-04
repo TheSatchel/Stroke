@@ -3,10 +3,12 @@
  *
  * 接受 tabsConfig 驱动渲染，每个 tab 定义含 describe 和控件字段。
  * 支持用户"当场设计"添加自定义 tab。
+ * - 第一个永远是 prompt，最后一个永远是 generate_call，二者不可拖拽
+ * - 新增字段始终插入到最后生成调用之前
  */
 
 import { el, svgEl, iconSvg } from './utils.js';
-import { widgetRegistry, getTabTemplate, tabsToPrompt, availableTabPool } from './ConfigTabs.js';
+import { widgetRegistry, getTabTemplate, tabsToPrompt, getGenerateCallSegments, availableTabPool } from './ConfigTabs.js';
 
 export default class ConfigPanel {
   /**
@@ -23,6 +25,9 @@ export default class ConfigPanel {
     this.dragSrc = null;
     this.onGenerate = null;
     this.onSettingsOpen = null;
+    this.onConfigChange = null;   // 拖动/增删/修改后通知外部持久化
+    this.onSaveToLineage = null;  // 手动保存按钮回调
+    this.onTabRemove = null;      // tab 被删除时回调 (id, def)
     this.render();
   }
 
@@ -37,13 +42,29 @@ export default class ConfigPanel {
     const header = el('div', 'col-header');
     header.appendChild(el('span', '', { text: '配置' }));
 
+    // 右侧按钮组（靠右）
+    const rightGroup = el('span', 'config-header-actions');
+
+    // 保存按钮（手动存储到当前 lineage）
+    this.saveBtn = el('button', 'add-tab-btn', {
+      title: '保存当前设置到历史版本',
+      text: '💾 保存',
+      onclick: () => {
+        if (this.onSaveToLineage) this.onSaveToLineage();
+        this.saveBtn.textContent = '✅ 已保存';
+        setTimeout(() => { this.saveBtn.textContent = '💾 保存'; }, 1500);
+      }
+    });
+    rightGroup.appendChild(this.saveBtn);
+
     // 添加字段按钮
     const addBtn = el('button', 'add-tab-btn', {
       title: '添加自定义字段',
       text: '+ 字段',
       onclick: () => this._showAddPopup()
     });
-    header.appendChild(addBtn);
+    rightGroup.appendChild(addBtn);
+    header.appendChild(rightGroup);
     this.container.appendChild(header);
 
     // body
@@ -106,11 +127,18 @@ export default class ConfigPanel {
     sec.addEventListener('dragleave', e => this._dLeave(e));
     sec.addEventListener('drop', e => this._dDrop(e, secId));
 
-    // header
-    const hdr = el('div', 'drag-header', { draggable: 'true' });
-    hdr.addEventListener('dragstart', e => this._dStart(e));
-    hdr.addEventListener('dragend', e => this._dEnd(e));
+    // header — prompt 和 generate_call 锁定不可拖
+    const isPinnedSection = tabDef.id === 'prompt' || tabDef.type === 'generate_call';
+    const hdr = el('div', 'drag-header', isPinnedSection ? { style: 'cursor:default' } : { draggable: 'true' });
+    if (!isPinnedSection) {
+      hdr.addEventListener('dragstart', e => this._dStart(e));
+      hdr.addEventListener('dragend', e => this._dEnd(e));
+    }
     const handle = el('div', 'drag-handle');
+    if (isPinnedSection) {
+      handle.style.opacity = '0.1';
+      handle.style.cursor = 'default';
+    }
     handle.innerHTML = '<span></span><span></span><span></span>';
     hdr.appendChild(handle);
     hdr.appendChild(el('span', 'drag-title', { text: tabDef.title || tabDef.id }));
@@ -136,7 +164,7 @@ export default class ConfigPanel {
     const body = el('div', 'drag-body');
     const WidgetClass = widgetRegistry[tabDef.type];
     if (WidgetClass) {
-      const widget = new WidgetClass(body, tabDef);
+      const widget = new WidgetClass(body, tabDef, tabDef.configId || null);
       this.widgets[tabDef.id] = { widget, def: tabDef };
     } else {
       body.appendChild(el('span', '', { text: '未知控件类型: ' + tabDef.type }));
@@ -149,16 +177,27 @@ export default class ConfigPanel {
   // ================================================================
   //  旗标按钮
   // ================================================================
-// ================================================================
+  _makeSectionFlagBtn(sec) {
+    const btn = el('button', 'section-flag-btn', {
+      title: '标记完成',
+      onclick: (e) => {
+        e.stopPropagation();
+        sec.classList.toggle('flagged');
+        btn.classList.toggle('done');
+      }
+    });
+    btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 13 13" fill="none"><line x1="2.5" y1="1.5" x2="2.5" y2="11.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></line><path d="M2.5 1.5 L10.5 1.5 L8.5 4.5 L10.5 7.5 L2.5 7.5 Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" fill="none"></path></svg>';
+    return btn;
+  }
+
+  // ================================================================
   //  操作菜单（删除 / 修改）
   // ================================================================
   _showTabMenu(e, tabDef) {
-    // 关闭已有的菜单
     this._closeTabMenu();
 
     const menu = el('div', 'tab-context-menu');
 
-    // 修改选项
     const editItem = el('div', 'tab-context-item', { text: '修改' });
     editItem.addEventListener('click', (ev) => {
       ev.stopPropagation();
@@ -167,14 +206,10 @@ export default class ConfigPanel {
     });
     menu.appendChild(editItem);
 
-    // 分割线
     const divider = el('div', 'tab-context-divider');
     menu.appendChild(divider);
 
-    // 删除选项（危险色）
-    const delItem = el('div', 'tab-context-item tab-context-item-danger', {
-      text: '删除'
-    });
+    const delItem = el('div', 'tab-context-item tab-context-item-danger', { text: '删除' });
     delItem.addEventListener('click', (ev) => {
       ev.stopPropagation();
       this._closeTabMenu();
@@ -182,7 +217,6 @@ export default class ConfigPanel {
     });
     menu.appendChild(delItem);
 
-    // 先挂到 DOM 里，测量实际尺寸
     document.body.appendChild(menu);
     this._activeTabMenu = menu;
 
@@ -190,7 +224,6 @@ export default class ConfigPanel {
     const menuH = menuRect.height;
     const menuW = menuRect.width;
 
-    // 智能定位：垂直方向下方不足则翻转到按钮上方
     const rect = e.target.getBoundingClientRect();
     const spaceBelow = window.innerHeight - rect.bottom;
     const spaceAbove = rect.top;
@@ -202,7 +235,6 @@ export default class ConfigPanel {
       top = rect.top - menuH - 4;
     }
 
-    // 水平定位：默认左对齐按钮左侧；若右侧放不下则贴死右侧面板右边界
     let left;
     const containerRect = this.container.getBoundingClientRect();
     if (rect.left + menuW <= window.innerWidth - 4) {
@@ -217,12 +249,10 @@ export default class ConfigPanel {
     menu.style.left = left + 'px';
     menu.style.top = top + 'px';
 
-    // 视窗大小改变时直接关闭菜单
     const resizeHandler = () => this._closeTabMenu();
     window.addEventListener('resize', resizeHandler);
     this._resizeHandler = resizeHandler;
 
-    // 点击其他地方关闭
     const closeHandler = (ev) => {
       if (!menu.contains(ev.target) && ev.target !== e.target) {
         this._closeTabMenu();
@@ -254,21 +284,13 @@ export default class ConfigPanel {
 
     const titleRow = el('div', 'add-tab-row');
     titleRow.appendChild(el('label', 'add-tab-label', { text: '名称' }));
-    const titleInput = el('input', 'add-tab-input', {
-      type: 'text',
-      placeholder: '字段名称',
-      value: tabDef.title || ''
-    });
+    const titleInput = el('input', 'add-tab-input', { type: 'text', placeholder: '字段名称', value: tabDef.title || '' });
     titleRow.appendChild(titleInput);
     popup.appendChild(titleRow);
 
     const descRow = el('div', 'add-tab-row');
     descRow.appendChild(el('label', 'add-tab-label', { text: '描述' }));
-    const descInput = el('input', 'add-tab-input', {
-      type: 'text',
-      placeholder: '描述这段字段的作用',
-      value: tabDef.describe || ''
-    });
+    const descInput = el('input', 'add-tab-input', { type: 'text', placeholder: '描述这段字段的作用', value: tabDef.describe || '' });
     descRow.appendChild(descInput);
     popup.appendChild(descRow);
 
@@ -285,6 +307,7 @@ export default class ConfigPanel {
         if (newTitle) tabDef.title = newTitle;
         if (newDescribe !== undefined) tabDef.describe = newDescribe;
         this.render();
+        this._notifyConfigChange();
         overlay.remove();
       }
     });
@@ -299,17 +322,17 @@ export default class ConfigPanel {
     document.body.appendChild(overlay);
   }
 
-  _makeSectionFlagBtn(sec) {
-    const btn = el('button', 'section-flag-btn', {
-      title: '标记完成',
-      onclick: (e) => {
-        e.stopPropagation();
-        sec.classList.toggle('flagged');
-        btn.classList.toggle('done');
-      }
-    });
-    btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 13 13" fill="none"><line x1="2.5" y1="1.5" x2="2.5" y2="11.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></line><path d="M2.5 1.5 L10.5 1.5 L8.5 4.5 L10.5 7.5 L2.5 7.5 Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" fill="none"></path></svg>';
-    return btn;
+  /**
+   * 获取按 generate_call 分段的所有 prompt
+   */
+  getSegmentPrompts() {
+    const sorted = [...this.tabsConfig].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const values = this.getTabValues();
+    const segments = getGenerateCallSegments(sorted);
+    return segments.map(seg => ({
+      ...seg,
+      prompt: tabsToPrompt(values, sorted, seg.endIndex)
+    }));
   }
 
   // ================================================================
@@ -343,7 +366,7 @@ export default class ConfigPanel {
     const typeRow = el('div', 'add-tab-row');
     typeRow.appendChild(el('label', 'add-tab-label', { text: '类型' }));
     const typeSel = el('select', 'add-tab-select');
-    typeSel.innerHTML = '<option value="text">单行文本</option><option value="text-multi">多行文本</option><option value="slider">调节拉杆</option><option value="choice-dropdown">下拉选择</option><option value="choice-toggle">开关</option><option value="choice-radio">单选组</option><option value="image">图片上传</option>';
+    typeSel.innerHTML = '<option value="text">单行文本</option><option value="text-multi">多行文本</option><option value="slider">调节拉杆</option><option value="choice-dropdown">下拉选择</option><option value="choice-toggle">开关</option><option value="choice-radio">单选组</option><option value="image">图片上传</option><option value="generate_call">生成调用</option>';
     typeRow.appendChild(typeSel);
     popup.appendChild(typeRow);
 
@@ -385,6 +408,18 @@ export default class ConfigPanel {
           tabDef = { ...getTabTemplate('choice'), title, describe, displayAs: 'radio' };
         } else if (typeVal === 'image') {
           tabDef = { ...getTabTemplate('image'), title, describe };
+        } else if (typeVal === 'generate_call') {
+          tabDef = {
+            id: 'generate_call_' + Date.now(),
+            title: title || '生成调用',
+            describe: describe || '触发一次图像生成。上游所有 prompt 将拼接后发送。',
+            type: 'generate_call',
+            order: 999,
+            removable: true,
+            defaultValue: null,
+            promptFormat: '',
+            showPromptSummary: true,
+          };
         }
         if (tabDef) this.addCustomTab(tabDef);
         overlay.remove();
@@ -402,17 +437,46 @@ export default class ConfigPanel {
   }
 
   addCustomTab(tabDef) {
-    const id = 'custom_' + Date.now();
-    const def = { ...tabDef, id, removable: true, order: this.tabsConfig.length };
+    // 尊重调用方传入的 id（如果 unique），否则自动生成
+    const existing = tabDef.id ? this.tabsConfig.find(t => t.id === tabDef.id) : null;
+    const id = (tabDef.id && !existing) ? tabDef.id : ('custom_' + Date.now());
+
+    // 新增字段插入到最后一个 generate_call 之前
+    const genCalls = this.tabsConfig.filter(t => t.type === 'generate_call');
+    const maxNonGen = this.tabsConfig.filter(t => t.type !== 'generate_call').reduce((max, t) => Math.max(max, t.order ?? 0), 0);
+    const lastGenOrder = genCalls.length > 0 ? Math.max(...genCalls.map(t => t.order ?? 1000)) : 1000;
+    const safeOrder = (maxNonGen + 1 >= lastGenOrder) ? (maxNonGen + lastGenOrder) / 2 : maxNonGen + 1;
+
+    const def = { ...tabDef, id, removable: true, order: safeOrder };
     this.tabsConfig.push(def);
-    this.secList.appendChild(this._makeTabSection(def));
+
+    // DOM 插入到最后一个 generate_call 之前
+    const genCallEls = Array.from(this.secList.children).filter(el => {
+      const tid = el.id.replace('sec-', '');
+      const d = this.tabsConfig.find(t => t.id === tid);
+      return d && d.type === 'generate_call';
+    });
+    const lastGenEl = genCallEls[genCallEls.length - 1];
+    const sectionEl = this._makeTabSection(def);
+    if (lastGenEl) {
+      this.secList.insertBefore(sectionEl, lastGenEl);
+    } else {
+      this.secList.appendChild(sectionEl);
+    }
+    this._notifyConfigChange();
   }
 
   removeTab(id) {
+    // 锁定元素不可删除
+    const def = this.tabsConfig.find(t => t.id === id);
+    if (def && (def.id === 'prompt' || def.type === 'generate_call')) return;
+
     delete this.widgets[id];
     this.tabsConfig = this.tabsConfig.filter(d => d.id !== id);
     const node = document.getElementById('sec-' + id);
     if (node) node.remove();
+    this._notifyConfigChange();
+    if (this.onTabRemove) this.onTabRemove(id, def);
   }
 
   // ================================================================
@@ -461,6 +525,13 @@ export default class ConfigPanel {
       e.preventDefault();
       return;
     }
+    // 固定元素不可拖拽
+    const elmId = elm.id.replace('sec-', '');
+    const def = this.tabsConfig.find(t => t.id === elmId);
+    if (def && (def.id === 'prompt' || def.type === 'generate_call')) {
+      e.preventDefault();
+      return;
+    }
     this.dragSrc = elm.id;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setDragImage(elm, 0, 0);
@@ -470,7 +541,6 @@ export default class ConfigPanel {
   }
 
   _dEnd(e) {
-    // 清除所有拖拽样式（拖拽取消、拖出界等）
     this.secList.querySelectorAll('.drag-section').forEach(s => s.classList.remove('dragging', 'drag-over'));
     this.dragSrc = null;
   }
@@ -494,12 +564,48 @@ export default class ConfigPanel {
       const src = document.getElementById(this.dragSrc);
       const tgt = document.getElementById(tid);
       if (src && tgt) {
-        const si = Array.from(this.secList.children).indexOf(src);
-        const ti = Array.from(this.secList.children).indexOf(tgt);
-        if (si < ti) this.secList.insertBefore(src, tgt.nextSibling);
+        const allChildren = Array.from(this.secList.children);
+        const srcIndex = allChildren.indexOf(src);
+        const tgtIndex = allChildren.indexOf(tgt);
+
+        // 模拟移动后的顺序
+        const simulated = allChildren.map(c => c.id.replace('sec-', ''));
+        const moved = simulated.splice(srcIndex, 1)[0];
+        const insertAt = srcIndex < tgtIndex ? tgtIndex : tgtIndex;
+        simulated.splice(insertAt, 0, moved);
+
+        // 验证：第一个必须是 prompt，最后一个必须是 generate_call
+        const firstDef = this.tabsConfig.find(t => t.id === simulated[0]);
+        const lastDef = this.tabsConfig.find(t => t.id === simulated[simulated.length - 1]);
+        if (!firstDef || firstDef.id !== 'prompt') {
+          this.dragSrc = null;
+          return;
+        }
+        if (!lastDef || lastDef.type !== 'generate_call') {
+          this.dragSrc = null;
+          return;
+        }
+
+        if (srcIndex < tgtIndex) this.secList.insertBefore(src, tgt.nextSibling);
         else this.secList.insertBefore(src, tgt);
+
+        this._syncTabOrder();
       }
     }
     this.dragSrc = null;
+  }
+
+  _syncTabOrder() {
+    const sortedIds = Array.from(this.secList.children).map(el => el.id.replace('sec-', ''));
+    for (let i = 0; i < sortedIds.length; i++) {
+      const def = this.tabsConfig.find(t => t.id === sortedIds[i]);
+      if (def) def.order = i;
+    }
+    this.tabsConfig.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    this._notifyConfigChange();
+  }
+
+  _notifyConfigChange() {
+    if (this.onConfigChange) this.onConfigChange();
   }
 }

@@ -3,6 +3,8 @@
  */
 
 import { el, svgEl, iconSvg } from './utils.js';
+import { isValidSvg } from '../adapters/ResponseParser.js';
+import { showWarningToast } from './Toast.js';
 
 export default class Canvas {
   constructor(container) {
@@ -13,6 +15,10 @@ export default class Canvas {
     this.ly = 0;
     this.currentHistory = 0;
     this.onLassoDone = null;
+    this.onCanvasImage = null;
+    this.onClearCanvas = null;
+    this._isShowingUserImage = false;
+    this._userImageDataUrl = '';
     this.render();
   }
 
@@ -26,16 +32,8 @@ export default class Canvas {
     this.canvasImg.addEventListener('mousemove', e => this.moveL(e));
     this.canvasImg.addEventListener('mouseup', e => this.endL(e));
 
-    this.cph = el('div', '', {
-      id: 'cph',
-      style: 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center'
-    });
-    const phInner = el('div', '', {
-      style: 'display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--color-text-tertiary)'
-    });
-    phInner.innerHTML = '<svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.3" opacity=".35"><rect x="3" y="3" width="30" height="30" rx="4"/><circle cx="12" cy="12" r="3.5"/><path d="M3 25l9-7 6 5 5-6 10 9"/></svg>';
-    phInner.appendChild(el('span', '', { text: '生成结果显示在这里', style: 'font-size:12px' }));
-    this.cph.appendChild(phInner);
+    // 画布占位区：整块可点击上传 / 拖拽
+    this.cph = this._createPlaceholder();
     this.canvasImg.appendChild(this.cph);
 
     this.lEl = el('div', 'lasso-ring', { id: 'lEl', style: 'display:none' });
@@ -73,6 +71,33 @@ export default class Canvas {
     });
     this.toolbar.appendChild(this.tHint);
     this.container.appendChild(this.toolbar);
+  }
+
+  /**
+   * Create the full placeholder element (with icon, text, and file input).
+   * Returns the cph element (hidden by default).
+   */
+  _createPlaceholder() {
+    const cph = el('div', 'canvas-placeholder', { id: 'cph' });
+    const phInner = el('div', 'canvas-placeholder-inner');
+    phInner.innerHTML = '<svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.4"><rect x="4" y="4" width="40" height="40" rx="6"/><circle cx="17" cy="17" r="5"/><path d="M4 34l12-10 8 6 7-8 14 12"/></svg>';
+    phInner.appendChild(el('span', 'canvas-placeholder-label', { text: '点击或拖拽上传参考图，生成结果也显示在此处' }));
+    cph.appendChild(phInner);
+
+    const fileInput = el('input', '', { type: 'file', accept: 'image/*', style: 'display:none' });
+    fileInput.addEventListener('change', (e) => this._handleCanvasImageFile(e.target.files[0]));
+    cph.appendChild(fileInput);
+
+    cph.addEventListener('click', () => fileInput.click());
+    cph.addEventListener('dragover', (e) => { e.preventDefault(); cph.classList.add('drag-over'); });
+    cph.addEventListener('dragleave', () => cph.classList.remove('drag-over'));
+    cph.addEventListener('drop', (e) => {
+      e.preventDefault();
+      cph.classList.remove('drag-over');
+      if (e.dataTransfer.files[0]) this._handleCanvasImageFile(e.dataTransfer.files[0]);
+    });
+
+    return cph;
   }
 
   setTool(t) {
@@ -123,6 +148,69 @@ export default class Canvas {
     }
   }
 
+  _handleCanvasImageFile(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    if (file.size > 10 * 1024 * 1024) {
+      showWarningToast('图片大小不能超过 10MB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      this.setCanvasImage(dataUrl);
+      if (this.onCanvasImage) this.onCanvasImage(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  setCanvasImage(dataUrl) {
+    if (!dataUrl) return;
+    this._isShowingUserImage = true;
+    this._userImageDataUrl = dataUrl;
+    if (this.cph) this.cph.style.display = 'none';
+    this.canvasImg.style.backgroundImage = 'none';
+    this.canvasImg.innerHTML = '';
+    this.canvasImg.innerHTML = `<img src="${dataUrl}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;border-radius:var(--border-radius-lg)" />`;
+
+    // Delete button
+    const delBtn = el('button', 'canvas-img-delete', {
+      html: '×',
+      title: '清除画布图片',
+      onclick: () => {
+        this.clear();
+        if (this.onClearCanvas) this.onClearCanvas();
+      }
+    });
+    this.canvasImg.appendChild(delBtn);
+
+    this.canvasImg.appendChild(this.lEl);
+    this.canvasImg.appendChild(this.lLbl);
+    this.cph = this._createPlaceholder();
+    this.cph.style.display = 'none';  // 已有图片，占位区隐藏
+    this.canvasImg.appendChild(this.cph);
+  }
+
+  isShowingUserImage() {
+    return this._isShowingUserImage;
+  }
+
+  getUserImageDataUrl() {
+    return this._userImageDataUrl;
+  }
+
+  clear() {
+    this.canvasImg.innerHTML = '';
+    this.canvasImg.style.backgroundImage = 'none';
+    this._isShowingUserImage = false;
+    this._userImageDataUrl = '';
+    this.canvasImg.appendChild(this.cph);
+    this.canvasImg.appendChild(this.lEl);
+    this.canvasImg.appendChild(this.lLbl);
+    this.cph.style.display = 'flex';
+    this.lEl.style.display = 'none';
+    this.lLbl.style.display = 'none';
+  }
+
   showHistory(i) {
     this.currentHistory = i;
     if (i !== 0) {
@@ -131,18 +219,55 @@ export default class Canvas {
     }
   }
 
-  loadVersion(svg) {
+  /**
+   * 加载版本内容到画布
+   * @param {ImageResult|Object|string} imageResult
+   *   - { type:'svg', svg:string } → 内嵌 SVG
+   *   - { type:'raster', dataUrl:string } → 内嵌 <img>
+   *   - 纯字符串（向后兼容） → 当作 SVG 处理
+   */
+  loadVersion(imageResult) {
+    this._isShowingUserImage = false;
+    this._userImageDataUrl = '';
     if (this.cph) this.cph.style.display = 'none';
     this.canvasImg.style.backgroundImage = 'none';
     this.canvasImg.innerHTML = '';
-    this.canvasImg.innerHTML = `<svg width="100%" height="100%" viewBox="0 0 56 56" fill="none" preserveAspectRatio="xMidYMid meet">${svg}</svg>`;
-    // 重新挂载套索层
+
+    // 类型判断（向后兼容纯 SVG 字符串）
+    if (typeof imageResult === 'string') {
+      imageResult = { type: 'svg', svg: imageResult };
+    }
+
+    if (imageResult && imageResult.type === 'raster' && imageResult.dataUrl) {
+      // 光栅图：用 <img> 标签内嵌
+      this.canvasImg.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">
+        <img src="${imageResult.dataUrl}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:4px" />
+      </div>`;
+    } else if (imageResult && imageResult.svg && isValidSvg(imageResult.svg)) {
+      this.canvasImg.innerHTML = `<svg width="100%" height="100%" viewBox="0 0 56 56" fill="none" preserveAspectRatio="xMidYMid meet">${imageResult.svg}</svg>`;
+    } else {
+      showWarningToast('生成结果无法显示，请检查 API 配置或模型');
+      this.canvasImg.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--color-text-tertiary);font-size:12px;text-align:center;padding:16px">
+        ⚠ 生成结果无法显示<br>请检查 API 配置或模型
+      </div>`;
+    }
+
+    // Delete button (for all display types)
+    const delBtn = el('button', 'canvas-img-delete', {
+      html: '×',
+      title: '清除画布图片',
+      onclick: () => {
+        this.clear();
+        if (this.onClearCanvas) this.onClearCanvas();
+      }
+    });
+    this.canvasImg.appendChild(delBtn);
+
+    // 重新挂载套索层 + 占位符
     this.canvasImg.appendChild(this.lEl);
     this.canvasImg.appendChild(this.lLbl);
-    this.cph = el('div', '', {
-      id: 'cph',
-      style: 'position:absolute;inset:0;display:none;align-items:center;justify-content:center'
-    });
+    this.cph = this._createPlaceholder();
+    this.cph.style.display = 'none';  // loadVersion 已有内容，占位区隐藏
     this.canvasImg.appendChild(this.cph);
   }
 }
