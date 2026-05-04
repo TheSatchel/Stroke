@@ -45,6 +45,8 @@ import TextWidget from './widgets/TextWidget.js';
 import SliderWidget from './widgets/SliderWidget.js';
 import ChoiceWidget from './widgets/ChoiceWidget.js';
 import ImageWidget from './widgets/ImageWidget.js';
+import CanvasRefImageWidget from './widgets/CanvasRefImageWidget.js';
+import GenerateCallWidget from './widgets/GenerateCallWidget.js';
 
 // ============================================================
 // 默认 Tab 配置
@@ -78,7 +80,7 @@ export const defaultConfigTabs = [
     title: '图像尺寸',
     describe: '选择输出图像的分辨率',
     type: 'choice',
-    order: 2,
+    order: 3,
     removable: true,
     options: ['1024×1024', '1024×512', '512×1024', '768×768', '1280×720'],
     defaultValue: '1024×1024',
@@ -98,6 +100,17 @@ export const defaultConfigTabs = [
     placeholder: '针对画圈区域的补充描述...',
     defaultValue: '',
     promptFormat: '区域: {value}',
+  },
+  {
+    id: 'generate_call',
+    title: '生成调用',
+    describe: '触发一次图像生成。上游所有 prompt 将拼接后发送。',
+    type: 'generate_call',
+    order: 1000,
+    removable: false,
+    defaultValue: null,
+    promptFormat: '',
+    showPromptSummary: true,
   },
 ];
 
@@ -191,6 +204,8 @@ export const widgetRegistry = {
   slider: SliderWidget,
   choice: ChoiceWidget,
   image: ImageWidget,
+  canvas_ref_image: CanvasRefImageWidget,
+  generate_call: GenerateCallWidget,
 };
 
 // ============================================================
@@ -202,20 +217,44 @@ export const widgetRegistry = {
  *
  * @param {Object} tabValues  - { tabId: currentValue, ... }
  * @param {Array}  tabDefs    - 当前有效的 tab 定义数组
+ * @param {number} [endIndex] - 可选，只处理到该 index 前的 tab
  * @returns {string} 拼接后的 prompt
  */
-export function tabsToPrompt(tabValues, tabDefs) {
+export function tabsToPrompt(tabValues, tabDefs, endIndex) {
   const parts = [];
-  for (const def of tabDefs) {
+  const limit = (endIndex !== undefined) ? endIndex : tabDefs.length;
+  for (let i = 0; i < limit && i < tabDefs.length; i++) {
+    const def = tabDefs[i];
+    if (def.type === 'generate_call') continue;
     const val = tabValues[def.id];
-    // 跳过空值
     if (val === undefined || val === null || val === '' || val === false) continue;
-    // 跳过默认值恰好与 defaultValue 相同且无意义的项（按需可扩展）
     const fmt = def.promptFormat;
     if (!fmt) continue;
     parts.push(fmt.replace('{value}', String(val)));
   }
   return parts.join(', ');
+}
+
+/**
+ * 获取 generate_call 切分点列表。
+ *
+ * @param {Array} tabDefs - 当前有效的 tab 定义数组（已按 order 排序）
+ * @returns {Array<{callTabId: string, startIndex: number, endIndex: number}>} 每个生成调用的范围
+ */
+export function getGenerateCallSegments(tabDefs) {
+  const segments = [];
+  let segmentStart = 0;
+  for (let i = 0; i < tabDefs.length; i++) {
+    if (tabDefs[i].type === 'generate_call') {
+      segments.push({
+        callTabId: tabDefs[i].id,
+        startIndex: segmentStart,
+        endIndex: i
+      });
+      segmentStart = i + 1;
+    }
+  }
+  return segments;
 }
 
 /**

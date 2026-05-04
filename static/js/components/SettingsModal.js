@@ -3,6 +3,7 @@
  */
 
 import { el } from './utils.js';
+import { clearAll } from '../storage.js';
 
 function hexToHsl(hex) {
   let r = 0, g = 0, b = 0;
@@ -81,6 +82,15 @@ function generateBaseScheme(accentHex, mode) {
       '--color-danger':               '#d45050',
       '--color-danger-hover':         '#b33a3a',
       '--color-danger-bg':            'rgba(220,82,82,0.10)',
+      // toast 通知颜色
+      '--color-error-bg':             'hsl(6,68%,17%)',
+      '--color-error-text':           'hsl(6,41%,92%)',
+      '--color-error-border':         'hsl(6,37%,38%)',
+      '--color-error-shadow':         'hsla(6,68%,6%,0.30)',
+      '--color-warning-bg':           'hsl(32,90%,16%)',
+      '--color-warning-text':         'hsl(32,63%,93%)',
+      '--color-warning-border':       'hsl(32,50%,42%)',
+      '--color-warning-shadow':       'hsla(32,90%,6%,0.32)',
     };
   } else {
     return {
@@ -102,6 +112,15 @@ function generateBaseScheme(accentHex, mode) {
       '--color-danger':               '#d45050',
       '--color-danger-hover':         '#b33a3a',
       '--color-danger-bg':            'rgba(220,82,82,0.10)',
+      // toast 通知颜色
+      '--color-error-bg':             'hsl(6,68%,95%)',
+      '--color-error-text':           'hsl(6,41%,16%)',
+      '--color-error-border':         'hsl(6,37%,64%)',
+      '--color-error-shadow':         'hsla(6,68%,40%,0.30)',
+      '--color-warning-bg':           'hsl(32,90%,95%)',
+      '--color-warning-text':         'hsl(32,63%,18%)',
+      '--color-warning-border':       'hsl(32,50%,68%)',
+      '--color-warning-shadow':       'hsla(32,90%,38%,0.32)',
     };
   }
 }
@@ -148,9 +167,12 @@ function loadThemePrefs() {
 }
 
 export default class SettingsModal {
-  constructor(container) {
+  constructor(container, generator) {
     this.overlay = container;
+    this.generator = generator || null;
+    this.onConfigOpen = null;
     this.onDeleteAll = null;
+    this.onResetAll = null;
     // 从 localStorage 恢复偏好
     var prefs = loadThemePrefs();
     this.currentAccent = prefs.accent;
@@ -177,54 +199,25 @@ export default class SettingsModal {
     this.modal.addEventListener('click', e => e.stopPropagation());
 
     const hdr = el('div', 'sm-header');
-    hdr.appendChild(el('span', 'sm-title', { text: '模型 API 设置' }));
+    hdr.appendChild(el('span', 'sm-title', { text: '设置' }));
     const closeBtn = el('button', 'sm-close', { text: '×', onclick: () => this.close() });
     hdr.appendChild(closeBtn);
     this.modal.appendChild(hdr);
 
     const body = el('div', 'sm-body');
 
-    const f1 = el('div', 'sm-field');
-    f1.appendChild(el('div', 'sm-label', { text: 'API 提供商' }));
-    this.provSelect = el('select', 'sm-input');
-    this.provSelect.innerHTML = '<option>OpenAI</option><option>Replicate</option><option>Stability AI</option><option>自定义端点</option>';
-    this.provSelect.addEventListener('change', () => this.provChange());
-    f1.appendChild(this.provSelect);
-    body.appendChild(f1);
-
-    const f2 = el('div', 'sm-field');
-    f2.appendChild(el('div', 'sm-label', { text: 'API Key' }));
-    f2.appendChild(el('input', 'sm-input', { type: 'password', placeholder: 'sk-...', value: 'sk-••••••••••••••••••••' }));
-    const status = el('span', 'sm-status ok');
-    status.appendChild(el('span', 'sm-dot'));
-    status.appendChild(document.createTextNode('已连接'));
-    f2.appendChild(status);
-    body.appendChild(f2);
-
-    const f3 = el('div', 'sm-field');
-    f3.appendChild(el('div', 'sm-label', { text: '模型' }));
-    this.modelSel = el('select', 'sm-input', { id: 'modelSel' });
-    this.modelSel.innerHTML = '<option>gpt-image-1</option><option selected>dall-e-3</option><option>dall-e-2</option>';
-    f3.appendChild(this.modelSel);
-    this.modelHint = el('div', 'sm-hint', { text: '当前：dall-e-3 · 支持 1024×1024, 1024×1792' });
-    f3.appendChild(this.modelHint);
-    body.appendChild(f3);
-
-    this.epField = el('div', 'sm-field', { id: 'epField', style: 'display:none' });
-    this.epField.appendChild(el('div', 'sm-label', { text: '自定义端点 URL' }));
-    this.epField.appendChild(el('input', 'sm-input', { type: 'text', placeholder: 'https://api.example.com/v1' }));
-    body.appendChild(this.epField);
-
-    const f5 = el('div', 'sm-field', { style: 'margin-bottom:0' });
-    f5.appendChild(el('div', 'sm-label', { text: '最大并发请求' }));
-    const wrapR = el('div', '', { style: 'display:flex;align-items:center;gap:10px' });
-    const rangeCC = el('input', '', { type: 'range', min: '1', max: '8', value: '3', step: '1', style: 'flex:1' });
-    this.cvSpan = el('span', '', { text: '3', style: 'font-size:13px;font-weight:500;color:var(--color-text-primary);min-width:16px', id: 'cv' });
-    rangeCC.addEventListener('input', () => this.cvSpan.textContent = rangeCC.value);
-    wrapR.appendChild(rangeCC);
-    wrapR.appendChild(this.cvSpan);
-    f5.appendChild(wrapR);
-    body.appendChild(f5);
+    // --- 配置管理入口 ---
+    const fCfg = el('div', 'sm-field');
+    fCfg.appendChild(el('div', 'sm-label', { text: '模型配置' }));
+    const cfgBtn = el('button', 'sm-btn-sec', {
+      text: '管理配置 …',
+      style: 'width:100%',
+      onclick: () => { if (this.onConfigOpen) this.onConfigOpen(); }
+    });
+    fCfg.appendChild(cfgBtn);
+    const cfgHint = el('div', 'sm-hint', { text: '添加、编辑或删除 API 提供商与模型配置' });
+    fCfg.appendChild(cfgHint);
+    body.appendChild(fCfg);
 
     // 主题色选择字段
     const fColor = el('div', 'sm-field');
@@ -270,11 +263,25 @@ export default class SettingsModal {
     const dangerHint = el('div', 'sm-danger-hint', { text: '此操作不可撤销' });
     body.appendChild(dangerHint);
 
+    // 初始化按钮：清除所有持久化数据
+    const resetDivider = el('div', 'sm-danger-divider');
+    body.appendChild(resetDivider);
+    const resetLabel = el('div', 'sm-danger-label', { text: '初始化' });
+    body.appendChild(resetLabel);
+    const resetBtn = el('button', 'sm-danger-btn', {
+      text: '重置所有数据',
+      style: 'background: var(--color-danger); color: #fff;',
+      onclick: () => { if (this.onResetAll) this.onResetAll(); }
+    });
+    body.appendChild(resetBtn);
+    const resetHint = el('div', 'sm-danger-hint', { text: '清除所有配置、历史与偏好，恢复为初始状态' });
+    body.appendChild(resetHint);
+
     this.modal.appendChild(body);
 
     const footer = el('div', 'sm-footer');
     footer.appendChild(el('button', 'sm-btn-sec', { text: '取消', onclick: () => this.close() }));
-    footer.appendChild(el('button', 'sm-btn-pri', { text: '保存', onclick: () => {
+    footer.appendChild(el('button', 'sm-btn-pri', { text: '确定', onclick: () => {
       saveThemePrefs(self.currentAccent, self.currentMode);
       self.close();
     }}));
@@ -283,71 +290,16 @@ export default class SettingsModal {
     this.overlay.appendChild(this.modal);
   }
 
+  // ================================================================
+  //  打开 / 关闭
+  // ================================================================
   open() {
     this.overlay.classList.remove('hidden');
-    // 打开弹窗时同步当前色值到 color input 和 mode select
     if (this.colorInput) this.colorInput.value = this.currentAccent;
     if (this.modeSelect) this.modeSelect.value = this.currentMode;
   }
 
   close() {
     this.overlay.classList.add('hidden');
-  }
-
-  provChange() {
-    const v = this.provSelect.value;
-    this.epField.style.display = v === '自定义端点' ? 'block' : 'none';
-    if (v === 'OpenAI') {
-      this.modelSel.innerHTML = '<option>gpt-image-1</option><option selected>dall-e-3</option><option>dall-e-2</option>';
-      this.modelHint.textContent = '当前：dall-e-3 · 支持 1024×1024, 1024×1792';
-    } else if (v === 'Replicate') {
-      this.modelSel.innerHTML = '<option selected>stability-ai/sdxl</option><option>black-forest-labs/flux</option>';
-      this.modelHint.textContent = '当前：stability-ai/sdxl';
-    } else if (v === 'Stability AI') {
-      this.modelSel.innerHTML = '<option selected>stable-diffusion-xl-1024</option><option>sd3-medium</option>';
-      this.modelHint.textContent = '当前：stable-diffusion-xl-1024';
-    } else {
-      this.modelSel.innerHTML = '<option>custom-model</option>';
-      this.modelHint.textContent = '自定义模型 ID';
-    }
-  }
-
-  getValues() {
-    const apiKeyInput = this.overlay.querySelector('.sm-field:nth-child(2) .sm-input');
-    const endpointInput = this.overlay.querySelector('#epField .sm-input');
-    const concurrencyInput = this.overlay.querySelector('.sm-field input[type=range]');
-    return {
-      provider: this.provSelect ? this.provSelect.value : 'OpenAI',
-      apiKey: apiKeyInput ? apiKeyInput.value : '',
-      model: this.modelSel ? this.modelSel.value : 'dall-e-3',
-      endpoint: endpointInput ? endpointInput.value : '',
-      concurrency: concurrencyInput ? parseInt(concurrencyInput.value) || 3 : 3
-    };
-  }
-
-  restoreValues(v) {
-    if (!v) return;
-    if (v.provider && this.provSelect) {
-      this.provSelect.value = v.provider;
-      this.provChange();
-    }
-    if (v.apiKey !== undefined) {
-      const apiKeyInput = this.overlay.querySelector('.sm-field:nth-child(2) .sm-input');
-      if (apiKeyInput) apiKeyInput.value = v.apiKey;
-    }
-    if (v.model && this.modelSel) {
-      this.modelSel.value = v.model;
-    }
-    if (v.endpoint !== undefined) {
-      const endpointInput = this.overlay.querySelector('#epField .sm-input');
-      if (endpointInput) endpointInput.value = v.endpoint;
-    }
-    if (v.concurrency !== undefined) {
-      const concurrencyInput = this.overlay.querySelector('.sm-field input[type=range]');
-      if (concurrencyInput) {
-        concurrencyInput.value = v.concurrency;
-        if (this.cvSpan) this.cvSpan.textContent = v.concurrency;
-      }
-    }
   }
 }

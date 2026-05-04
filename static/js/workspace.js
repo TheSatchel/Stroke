@@ -1,6 +1,5 @@
 /**
  * Stroke · Image Generation Workspace
- * 从 image_gen_workspace_v3.html 提取的交互逻辑
  */
 
 (function(){

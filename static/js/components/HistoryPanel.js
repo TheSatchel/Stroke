@@ -18,7 +18,17 @@ export default class HistoryPanel {
     this.container.className = 'col-left';
     this.container.innerHTML = '';
 
-    const header = el('div', 'col-header', { text: '历史版本', style: 'display:block;padding:12px 14px 10px;flex-shrink:0' });
+    const header = el('div', 'col-header');
+    const title = el('span', '', { text: '历史版本' });
+    header.appendChild(title);
+    const newBtn = el('button', 'hist-new-project-btn', {
+      html: '+ 新建',
+      title: '新建项目版本',
+      onclick: () => {
+        if (this.onNewProject) this.onNewProject();
+      }
+    });
+    header.appendChild(newBtn);
     this.container.appendChild(header);
 
     this.listEl = el('div', 'history-list', { style: 'flex:1;overflow-y:auto;overflow-x:hidden;padding:8px;direction:rtl' });
@@ -35,7 +45,11 @@ export default class HistoryPanel {
       });
 
       const thumb = el('div', 'hist-thumb', item.bg ? { style: 'background:' + item.bg } : {});
-      thumb.innerHTML = `<svg width="56" height="56" viewBox="0 0 56 56" fill="none">${item.svg}</svg>`;
+      if (item.type === 'raster' && item.dataUrl) {
+        thumb.innerHTML = `<img src="${item.dataUrl}" />`;
+      } else {
+        thumb.innerHTML = `<svg viewBox="0 0 56 56" fill="none">${item.svg || ''}</svg>`;
+      }
       if (item.current) {
         const badge = el('span', '', {
           html: '当前',
@@ -180,29 +194,59 @@ export default class HistoryPanel {
       });
     });
 
-    // 更新缩略图 SVG（只替换 svg 元素，避免覆盖 badge）
+    // 更新缩略图（支持 SVG 和光栅图）
     this.items.forEach((item, i) => {
       const itemEl = this.listWrap.children[i];
       if (!itemEl) return;
       const thumb = itemEl.querySelector('.hist-thumb');
-      if (!thumb || !item.svg) return;
-      const svgEl = thumb.querySelector('svg');
-      if (svgEl) {
-        svgEl.outerHTML = `<svg width="56" height="56" viewBox="0 0 56 56" fill="none">${item.svg}</svg>`;
-      } else {
-        thumb.insertAdjacentHTML('afterbegin', `<svg width="56" height="56" viewBox="0 0 56 56" fill="none">${item.svg}</svg>`);
+      if (!thumb) return;
+      if (item.type === 'raster' && item.dataUrl) {
+        // 光栅图：更新 <img> 标签
+        const imgEl = thumb.querySelector('img');
+        if (imgEl) {
+          imgEl.src = item.dataUrl;
+        } else {
+          thumb.innerHTML = `<img src="${item.dataUrl}" />` + thumb.innerHTML;
+        }
+      } else if (item.svg) {
+        // SVG：替换 <svg> 元素
+        const svgEl = thumb.querySelector('svg');
+        if (svgEl) {
+          svgEl.outerHTML = `<svg viewBox="0 0 56 56" fill="none">${item.svg}</svg>`;
+        } else {
+          thumb.insertAdjacentHTML('afterbegin', `<svg viewBox="0 0 56 56" fill="none">${item.svg}</svg>`);
+        }
       }
     });
   }
 
-  updateActiveItem(versionIndex, svg, timeStr) {
+  /**
+   * 更新当前选中项（添加新版本）
+   * @param {number} versionIndex - 新版本号
+   * @param {Object} imageResult - { type:'svg'|'raster', svg, dataUrl } 或纯 SVG 字符串
+   * @param {string} timeStr - 时间
+   */
+  updateActiveItem(versionIndex, imageResult, timeStr) {
     for (let i = 0; i < this.items.length; i++) {
       if (this.items[i].current) {
         const item = this.items[i];
         item.versionActive = versionIndex;
         item.versionCount = Math.max(item.versionCount, versionIndex + 1);
-        item.svg = svg;
         item.time = timeStr;
+        // 支持 ImageResult 对象和纯 SVG 字符串两种格式
+        if (imageResult && typeof imageResult === 'object' && imageResult.type === 'raster' && imageResult.dataUrl) {
+          item.type = 'raster';
+          item.dataUrl = imageResult.dataUrl;
+          item.svg = '';
+        } else if (imageResult && typeof imageResult === 'object' && imageResult.svg) {
+          item.type = 'svg';
+          item.svg = imageResult.svg;
+          item.dataUrl = '';
+        } else if (typeof imageResult === 'string') {
+          item.type = 'svg';
+          item.svg = imageResult;
+          item.dataUrl = '';
+        }
         this._refreshStepper();
         if (this.onSelect) this.onSelect(i);
         break;

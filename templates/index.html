@@ -91,6 +91,24 @@
         r.setProperty('--color-danger', 'hsl('+5+','+dSat+'%,'+dL+'%)');
         r.setProperty('--color-danger-hover', 'hsl('+5+','+dSat+'%,'+(Math.max(20,dL-13))+'%)');
         r.setProperty('--color-danger-bg', 'hsla('+5+','+dSat+'%,'+dL+'%,0.12)');
+
+        // error toast — red-variant, high contrast bg
+        var eSat = Math.round(68 + s * 0.15);
+        var eL = isDark ? 17 : 95;
+        var eTextL = isDark ? 92 : 16;
+        r.setProperty('--color-error-bg', 'hsl('+6+','+eSat+'%,'+eL+'%)');
+        r.setProperty('--color-error-text', 'hsl('+6+','+(Math.round(eSat*0.6))+'%,'+eTextL+'%)');
+        r.setProperty('--color-error-border', 'hsl('+6+','+Math.round(eSat*0.55)+'%,'+(isDark?38:64)+'%)');
+        r.setProperty('--color-error-shadow', 'hsla('+6+','+eSat+'%,'+(isDark?6:40)+'%,0.30)');
+
+        // warning toast — warm amber, fixed near-orange
+        var wH = 32, wSat = 90;
+        var wLBg = isDark ? 16 : 95;
+        var wLText = isDark ? 93 : 18;
+        r.setProperty('--color-warning-bg', 'hsl('+wH+','+wSat+'%,'+wLBg+'%)');
+        r.setProperty('--color-warning-text', 'hsl('+wH+','+(Math.round(wSat*0.7))+'%,'+wLText+'%)');
+        r.setProperty('--color-warning-border', 'hsl('+wH+','+Math.round(wSat*0.55)+'%,'+(isDark?42:68)+'%)');
+        r.setProperty('--color-warning-shadow', 'hsla('+wH+','+wSat+'%,'+(isDark?6:38)+'%,0.32)');
       }
 
       var resolvedMode = mode;
@@ -110,8 +128,8 @@
 
 <div id="app"></div>
 
-<script type="module" src="/static/js/uis.js"></script>
+<script type="module" src="/static/js/ui.js"></script>
 <script src="/static/js/pwa.js"></script>
-<script src="/static/js/main.js"></script>
+<script type="module" src="/static/js/main.js"></script>
 </body>
 </html>

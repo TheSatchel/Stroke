@@ -2,29 +2,55 @@
  * Service Worker - 基础缓存策略
  */
 
-const CACHE_NAME = 'app-cache-v2';
+const CACHE_NAME = 'app-cache-v4';
 const ASSETS = [
     '/',
-    '/static/css/style.css',
     '/static/css/workspace.css',
     '/static/js/main.js',
     '/static/js/pwa.js',
-    '/static/js/uis.js',
+    '/static/js/ui.js',
+    '/static/js/storage.js',
+    '/static/js/segmentparser.js',
+    '/static/js/adapter.js',
+    '/static/js/workspace.js',
+    '/static/js/uis/App.js',
+    '/static/js/uis/Generator.js',
+    '/static/js/uis/persistence.js',
+    '/static/js/uis/fingerprint.js',
     '/static/js/components/HistoryPanel.js',
     '/static/js/components/Canvas.js',
     '/static/js/components/ConfigPanel.js',
+    '/static/js/components/ConfigTabs.js',
+    '/static/js/components/ConfigModal.js',
     '/static/js/components/SettingsModal.js',
     '/static/js/components/utils.js',
+    '/static/js/components/widgets/TextWidget.js',
+    '/static/js/components/widgets/ImageWidget.js',
+    '/static/js/components/widgets/ChoiceWidget.js',
+    '/static/js/components/widgets/SliderWidget.js',
+    '/static/js/components/widgets/GenerateCallWidget.js',
+    '/static/js/components/widgets/AbstractImageWidget.js',
+    '/static/js/adapters/BaseAdapters.js',
+    '/static/js/adapters/ResponseParser.js',
+    '/static/js/adapters/XianyuAdapter.js',
     '/manifest.json',
     '/static/img/icon-192x192.png',
     '/static/img/icon-512x512.png',
     '/static/img/icon-512x512-maskable.png',
 ];
 
-// 安装
+// 安装 — 逐个缓存，单个文件失败不影响整体
 self.addEventListener('install', (event) => {
     event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+        caches.open(CACHE_NAME).then((cache) =>
+            Promise.allSettled(
+                ASSETS.map((url) =>
+                    cache.add(url).catch((err) => {
+                        console.warn('[SW] 缓存失败:', url, err.message);
+                    })
+                )
+            )
+        )
     );
     self.skipWaiting();
 });
