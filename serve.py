@@ -2,13 +2,14 @@
 生产服务器入口 (ASGI / WSGI) — Windows / Linux 通用
 
 用法:
-  python serve.py              # 默认 ASGI (uvicorn)
+  python serve.py              # 默认 WSGI (waitress)
   python serve.py --asgi       # ASGI 模式 (uvicorn)
   python serve.py --wsgi       # WSGI 模式 (waitress + a2wsgi)
   python serve.py --debug      # 调试模式 (仅 ASGI, 开启 reload 单 worker)
 """
 import argparse
 import yaml
+import platform
 from pathlib import Path
 
 
@@ -22,7 +23,9 @@ def load_server_config():
 def run_asgi(host: str, port: int, workers: int, debug: bool = False):
     """ASGI 模式: uvicorn（跨平台）"""
     import uvicorn
+
     actual_workers = 1 if debug else workers
+
     print(f"  [ASGI] uvicorn  ->  http://{host}:{port}  (workers={actual_workers}, reload={debug})")
     uvicorn.run(
         "app:create_app",
@@ -60,8 +63,11 @@ def main():
     host = cfg.get("host", "0.0.0.0")
     port = cfg.get("port", 8000)
     workers = cfg.get("workers", 4)
+    mode = cfg.get("mode", "wsgi").lower()  # 默认 wsgi，避免 Windows 多进程问题
 
-    if args.wsgi:
+    # 命令行覆盖配置文件
+    use_wsgi = args.wsgi or (mode == "wsgi" and not args.asgi)
+    if use_wsgi:
         run_wsgi(host, port)
     else:
         run_asgi(host, port, workers, debug=args.debug)
