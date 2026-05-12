@@ -5,14 +5,20 @@
 
 import HistoryPanel from '../components/HistoryPanel.js';
 import Canvas from '../components/Canvas.js';
-import ConfigPanel from '../components/ConfigPanel.js';
+import ConfigPanel from '../components/config-panel/ConfigPanel.js';
+import DragManager from '../components/config-panel/DragManager.js';
 import { defaultConfigTabs } from '../components/ConfigTabs.js';
-import SettingsModal from '../components/SettingsModal.js';
-import ConfigModal from '../components/ConfigModal.js';
-import { migrateLegacyPresets, clearAll } from '../storage.js';
-import { GeneratorService } from '../adapter.js';
-import { saveAppState, loadAppState, saveSettingsBarToLineage, loadSettingsBarFromLineage, deleteHistoryItem, deleteAllHistory } from './persistence.js';
-import { performGeneration } from './Generator.js';
+import SettingsModal from '../components/setting-modal/SettingsModal.js';
+import ConfigModal from '../components/setting-modal/ConfigModal.js';
+import { migrateLegacyPresets, clearAll } from '../locals/storage.js';
+import { GeneratorService } from '../Adapter.js';
+import { saveAppState, loadAppState, saveSettingsBarToLineage, loadSettingsBarFromLineage, deleteHistoryItem, deleteAllHistory } from '../locals/Persistence.js';
+import { performGeneration } from '../generates/Generator.js';
+import PersistenceGuard from '../locals/PersistenceGuard.js';
+import LineageManager from '../locals/LineageManager.js';
+
+const REGION_COLORS = ['#3B82F6', '#E11D48', '#F59E0B', '#10B981', '#8B5CF6', '#F97316'];
+const REGION_LABELS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
 export default class App {
   constructor(mount) {
@@ -32,6 +38,11 @@ export default class App {
     this.configFingerprints = {};
     this.currentLineageId = null;
     this.currentVersionIndex = 0;
+    this._regionCount = 0;
+
+    // 注入 Manager（Issue 1+3+4）
+    this._lineageManager = new LineageManager(this.versionLineages, this.configFingerprints);
+    this._persistenceGuard = new PersistenceGuard(this);
 
     // 左栏 — 历史版本
     this.history = new HistoryPanel(document.createElement('div'));
@@ -87,94 +98,7 @@ export default class App {
   }
 
   _initResizeHandles() {
-    const appEl = this.el;
-    const ghost = document.createElement('div');
-    ghost.className = 'resize-ghost';
-    document.body.appendChild(ghost);
-
-    // Parse the rendered px widths from minmax() columns
-    const getRenderedWidths = () => {
-      const cs = getComputedStyle(appEl);
-      const parts = cs.gridTemplateColumns.split(' ');
-      return {
-        left: parseFloat(parts[0]) || 200,
-        mid: parseFloat(parts[2]) || 400,
-        right: parseFloat(parts[4]) || 260
-      };
-    };
-
-    const setSizes = (leftMax, rightMax) => {
-      appEl.style.gridTemplateColumns =
-        `minmax(140px,${leftMax}px) 4px minmax(200px,1fr) 4px minmax(200px,${rightMax}px)`;
-    };
-
-    const persistSizes = (leftW, rightW) => {
-      try {
-        localStorage.setItem('stroke_panel_sizes', JSON.stringify({ left: leftW, right: rightW }));
-      } catch (e) { /* ignore */ }
-    };
-
-    // Restore saved sizes
-    try {
-      const raw = localStorage.getItem('stroke_panel_sizes');
-      if (raw) {
-        const saved = JSON.parse(raw);
-        if (saved && typeof saved.left === 'number' && typeof saved.right === 'number') {
-          setSizes(Math.max(saved.left, 140), Math.max(saved.right, 200));
-        }
-      }
-    } catch (e) { /* ignore */ }
-
-    // Drag logic
-    const makeDragger = (handleEl, isLeft) => {
-      let dragging = false;
-      let startX = 0;
-      let startCols = null;
-      const minW = isLeft ? 140 : 200;
-      const maxW = isLeft ? 340 : 480;
-
-      handleEl.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        dragging = true;
-        startX = e.clientX;
-        startCols = getRenderedWidths();
-        handleEl.classList.add('active');
-        ghost.style.display = 'block';
-        ghost.style.left = e.clientX + 'px';
-        document.body.style.userSelect = 'none';
-        document.body.style.cursor = 'col-resize';
-      });
-
-      const onMove = (e) => {
-        if (!dragging) return;
-        ghost.style.left = e.clientX + 'px';
-        const dx = e.clientX - startX;
-        if (isLeft) {
-          const newLeft = Math.round(Math.max(minW, Math.min(maxW, startCols.left + dx)));
-          setSizes(newLeft, startCols.right);
-        } else {
-          const newRight = Math.round(Math.max(minW, Math.min(maxW, startCols.right - dx)));
-          setSizes(startCols.left, newRight);
-        }
-      };
-
-      const onUp = () => {
-        if (!dragging) return;
-        dragging = false;
-        handleEl.classList.remove('active');
-        ghost.style.display = 'none';
-        document.body.style.userSelect = '';
-        document.body.style.cursor = '';
-        const ren = getRenderedWidths();
-        persistSizes(ren.left, ren.right);
-      };
-
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    };
-
-    makeDragger(this._handleLeft, true);
-    makeDragger(this._handleRight, false);
+    DragManager.installResizeHandles(this.el, this._handleLeft, this._handleRight);
   }
 
   // ================================================================
@@ -195,11 +119,7 @@ export default class App {
       if (lineage && lineage.versions[item.versionActive]) {
         self.canvas.loadVersion(lineage.versions[item.versionActive]);
       }
-      if (item.regionLabel) {
-        self.config.showRegionPrompt(item.regionLabel);
-      } else {
-        self.config.hideRegionPrompt();
-      }
+      // regionLabel 相关旧逻辑已移除
     };
 
     // 版本切换
@@ -240,10 +160,25 @@ export default class App {
       deleteHistoryItem(self, i);
     };
 
-    // 画布套索完成 → 显示区域 prompt
-    this.canvas.onLassoDone = () => {
-      this.config.showRegionPrompt('区域 prompt');
+    // ★ 选区确认 → 动态创建 region_prompt 实例
+    this.canvas.onSelectionConfirm = (data) => {
+      const color = self._nextRegionColor();
+      const label = self._nextRegionLabel();
+      // 在画布上持久显示选区
+      self.canvas.addConfirmedSelection(label, { ...data, color, label });
+      self.config.addRegionPrompt({ ...data, color, label });
+      self._regionCount++;
+      self._notifyConfigChangeSafe();
     };
+
+    // 选区取消 → 什么都不做
+    this.canvas.onSelectionCancel = () => {};
+
+    // ★ 从 RegionPromptWidget 删除选区时同步清理画布
+    this.config.setOnRegionRemove((label) => {
+      self.canvas.removeConfirmedSelection(label);
+      self._notifyConfigChangeSafe();
+    });
 
     // ★ 画布上传图片 → 动态添加/更新「画布参考图」widget
     this.canvas.onCanvasImage = (dataUrl) => {
@@ -258,24 +193,30 @@ export default class App {
           type: 'canvas_ref_image',
           order: 1.5,
           removable: true,
+          unpersist: true,
           defaultValue: dataUrl,
           promptFormat: '',
         };
         self.config.addCustomTab(def);
         entry = self.config.widgets['canvas_ref_image'];
-        if (entry) self._rewireImageSync();
+        if (entry) {
+          entry.widget.setValue(dataUrl);
+          self._rewireImageSync();
+        }
       } else {
         entry.widget.setValue(dataUrl);
       }
       self._notifyConfigChangeSafe();
     };
 
-    // ★ Canvas clear button → remove canvas_ref_image widget
+    // ★ Canvas clear button → remove canvas_ref_image widget + all region prompts
     this.canvas.onClearCanvas = () => {
+      self._regionCount = 0;
       const refEntry = self.config.widgets['canvas_ref_image'];
       if (refEntry) {
         self.config.removeTab('canvas_ref_image');
       }
+      self.config.removeAllRegionPrompts();
       self._notifyConfigChangeSafe();
     };
 
@@ -311,17 +252,11 @@ export default class App {
       window.location.reload();
     };
 
-    // 配置面板拖动/增删/修改后 → 仅持久化全局状态，不自动写入 lineage
+    // 配置面板拖动/增删/修改后 → 自动存入 lineage（真实或隐藏）
     this.config.onConfigChange = () => {
-      // 防抖：延迟写 localStorage，避免高频拖动卡顿
-      if (self._saveDebounce) clearTimeout(self._saveDebounce);
-      self._saveDebounce = setTimeout(() => saveAppState(self), 300);
-    };
-
-    // 手动保存按钮 → 存入当前 lineage
-    this.config.onSaveToLineage = () => {
+      // 委托 PersistenceGuard 处理防抖 + 保存
       saveSettingsBarToLineage(self);
-      saveAppState(self);
+      self._persistenceGuard.markDirty();
     };
 
     // ConfigModal 关闭后刷新所有 GenerateCallWidget 的配置下拉
@@ -349,14 +284,34 @@ export default class App {
    * 安全地触发配置变更持久化
    */
   _notifyConfigChangeSafe() {
-    if (this._saveDebounce) clearTimeout(this._saveDebounce);
-    this._saveDebounce = setTimeout(() => saveAppState(this), 300);
+    if (this._persistenceGuard) {
+      this._persistenceGuard.markDirty();
+    } else {
+      // 回退到旧模式
+      if (this._saveDebounce) clearTimeout(this._saveDebounce);
+      this._saveDebounce = setTimeout(() => saveAppState(this), 300);
+    }
   }
 
   /**
-   * 重新连接右侧 ImageWidget onChange → 画布（config.render() 后必须调用）
+   * 颜色轮转
+   */
+  _nextRegionColor() {
+    return REGION_COLORS[this._regionCount % REGION_COLORS.length];
+  }
+
+  /**
+   * 代号轮转 (A, B, C, ...)
+   */
+  _nextRegionLabel() {
+    return REGION_LABELS[this._regionCount % REGION_LABELS.length];
+  }
+
+  /**
+   * 重新连接所有 ImageWidget → 画布双向同步（config.render() 后必须调用）
    */
   _rewireImageSync() {
+    // 1) canvas_ref_image widget ↔ Canvas 双向同步
     const refEntry = this.config.widgets['canvas_ref_image'];
     if (refEntry && refEntry.widget) {
       refEntry.widget.onChange((dataUrl) => {
@@ -372,5 +327,48 @@ export default class App {
         this._notifyConfigChangeSafe();
       });
     }
+
+    // 2) 所有非只读 image 控件：粘贴/上传图片 → 自动推送到画布
+    for (const [id, entry] of Object.entries(this.config.widgets)) {
+      if (id === 'canvas_ref_image') continue; // 已在上面处理
+      if (!entry || !entry.widget) continue;
+      const def = entry.def || {};
+      if (def.type !== 'image') continue;
+      if (entry.widget._readonly) continue;
+      // 注册深集成回调
+      if (typeof entry.widget.onImageData === 'function') {
+        entry.widget.onImageData((dataUrl) => {
+          if (dataUrl && dataUrl === this.canvas.getUserImageDataUrl()) return;
+          if (dataUrl) {
+            this.canvas.setCanvasImage(dataUrl);
+            // 同时更新 canvas_ref_image widget（如果存在）
+            const refW = this.config.widgets['canvas_ref_image'];
+            if (refW && refW.widget) {
+              refW.widget.setValue(dataUrl);
+            } else {
+              // 自动创建 canvas_ref_image tab
+              const def2 = {
+                id: 'canvas_ref_image',
+                title: '画布参考图',
+                describe: '画布上点击/拖拽上传的参考图',
+                type: 'canvas_ref_image',
+                order: 1.5,
+                removable: true,
+                defaultValue: dataUrl,
+                promptFormat: '',
+              };
+              this.config.addCustomTab(def2);
+              const refW2 = this.config.widgets['canvas_ref_image'];
+              if (refW2 && refW2.widget) {
+                refW2.widget.setValue(dataUrl);
+              }
+            }
+            this._notifyConfigChangeSafe();
+          }
+        });
+      }
+    }
   }
 }
+
+window.StrokeApp = App;
