@@ -11,7 +11,7 @@
  *   </div>
  */
 
-import { el } from '../utils.js';
+import { el } from '../../utils/DOM.js';
 
 export default class ChoiceWidget {
   constructor(container, config) {
@@ -62,7 +62,7 @@ export default class ChoiceWidget {
 
   /* -------- toggle 开关 -------- */
   _renderToggle(body) {
-    const row = el('label', 'toggle-row');
+    const row = el('div', 'toggle-row');
 
     this.labelEl = el('span', 'toggle-label', { text: this.config.toggleLabel || '开启' });
     row.appendChild(this.labelEl);
@@ -76,14 +76,17 @@ export default class ChoiceWidget {
     this.el = el('input', '', { type: 'checkbox', style: 'display:none' });
     if (this._value === true || this._value === 'on' || this._value === 'true') {
       this.el.checked = true;
-      this.track.classList.add('on');
+      this.track.classList.add('toggle-track--on');
     }
     this.el.addEventListener('change', () => {
       this._value = this.el.checked;
-      this.track.classList.toggle('on', this.el.checked);
+      this.track.classList.toggle('toggle-track--on', this.el.checked);
       if (this._onChange) this._onChange(this._value);
     });
-    sw.addEventListener('click', () => this.el.click());
+    row.addEventListener('click', () => {
+      this.el.checked = !this.el.checked;
+      this.el.dispatchEvent(new Event('change'));
+    });
 
     row.appendChild(this.el);
     row.appendChild(sw);
@@ -129,7 +132,7 @@ export default class ChoiceWidget {
     if (!this.el) return;
     if (this.config.displayAs === 'toggle') {
       this.el.checked = !!(v === true || v === 'on' || v === 'true');
-      this.track?.classList.toggle('on', this.el.checked);
+      this.track?.classList.toggle('toggle-track--on', this.el.checked);
     } else if (this.config.displayAs === 'radio') {
       this.radios?.forEach((r) => { r.checked = (r.value === v); });
     } else {

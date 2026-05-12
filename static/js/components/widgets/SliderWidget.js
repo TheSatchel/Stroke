@@ -17,7 +17,7 @@
  *   </div>
  */
 
-import { el } from '../utils.js';
+import { el } from '../../utils/DOM.js';
 
 export default class SliderWidget {
   constructor(container, config) {
