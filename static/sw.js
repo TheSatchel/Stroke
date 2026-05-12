@@ -1,61 +1,18 @@
 ﻿/**
- * Service Worker - 基础缓存策略
+ * Service Worker - 运行时自动缓存策略（无需手动维护文件清单）
+ *
+ * 策略：网络优先 + 自动缓存。每个成功的 GET 请求都会被缓存，
+ * 后续离线时自动使用缓存版本。不预缓存任何文件（install 为空操作）。
  */
 
-const CACHE_NAME = 'app-cache-v4';
-const ASSETS = [
-    '/',
-    '/static/css/workspace.css',
-    '/static/js/main.js',
-    '/static/js/pwa.js',
-    '/static/js/ui.js',
-    '/static/js/storage.js',
-    '/static/js/segmentparser.js',
-    '/static/js/adapter.js',
-    '/static/js/workspace.js',
-    '/static/js/uis/App.js',
-    '/static/js/uis/Generator.js',
-    '/static/js/uis/persistence.js',
-    '/static/js/uis/fingerprint.js',
-    '/static/js/components/HistoryPanel.js',
-    '/static/js/components/Canvas.js',
-    '/static/js/components/ConfigPanel.js',
-    '/static/js/components/ConfigTabs.js',
-    '/static/js/components/ConfigModal.js',
-    '/static/js/components/SettingsModal.js',
-    '/static/js/components/utils.js',
-    '/static/js/components/widgets/TextWidget.js',
-    '/static/js/components/widgets/ImageWidget.js',
-    '/static/js/components/widgets/ChoiceWidget.js',
-    '/static/js/components/widgets/SliderWidget.js',
-    '/static/js/components/widgets/GenerateCallWidget.js',
-    '/static/js/components/widgets/AbstractImageWidget.js',
-    '/static/js/adapters/BaseAdapters.js',
-    '/static/js/adapters/ResponseParser.js',
-    '/static/js/adapters/XianyuAdapter.js',
-    '/manifest.json',
-    '/static/img/icon-192x192.png',
-    '/static/img/icon-512x512.png',
-    '/static/img/icon-512x512-maskable.png',
-];
+const CACHE_NAME = 'app-cache-v5';
 
-// 安装 — 逐个缓存，单个文件失败不影响整体
-self.addEventListener('install', (event) => {
-    event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) =>
-            Promise.allSettled(
-                ASSETS.map((url) =>
-                    cache.add(url).catch((err) => {
-                        console.warn('[SW] 缓存失败:', url, err.message);
-                    })
-                )
-            )
-        )
-    );
+// 安装 — 直接激活，不预缓存（运行时按需缓存）
+self.addEventListener('install', () => {
     self.skipWaiting();
 });
 
-// 激活
+// 激活 — 清理旧版本缓存
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         caches.keys().then((keys) =>
@@ -67,37 +24,40 @@ self.addEventListener('activate', (event) => {
     self.clients.claim();
 });
 
-// 请求拦截 - 缓存优先
+// 请求拦截 — 网络优先，自动缓存，离线回退
 self.addEventListener('fetch', (event) => {
     if (event.request.method !== 'GET') return;
 
-    // 只处理 http/https 请求（排除 chrome-extension:// 等）
     const url = new URL(event.request.url);
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-        return;
-    }
-
+    // 只处理同源 http/https 请求
+    if (url.origin !== self.location.origin) return;
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
     event.respondWith(
-        caches.match(event.request).then((cached) => {
-            const fetched = fetch(event.request)
-                .then((response) => {
-                    // 成功后更新缓存（只缓存 http/https 响应）
-                    if (response.ok && (url.protocol === 'http:' || url.protocol === 'https:')) {
-                        const clone = response.clone();
-                        caches.open(CACHE_NAME).then((cache) =>
-                            cache.put(event.request, clone)
-                        );
-                    }
-                    return response;
-                })
-                .catch(() => {
-                    // 离线回退
+        fetch(event.request)
+            .then((response) => {
+                // 成功后更新缓存
+                if (response.ok) {
+                    const clone = response.clone();
+                    caches.open(CACHE_NAME).then((cache) =>
+                        cache.put(event.request, clone)
+                    );
+                }
+                return response;
+            })
+            .catch(() => {
+                // 网络失败 → 回退缓存
+                return caches.match(event.request).then((cached) => {
+                    if (cached) return cached;
+                    // 导航请求无缓存时返回首页
                     if (event.request.mode === 'navigate') {
                         return caches.match('/');
                     }
+                    // 非导航请求无缓存 → 返回 503
+                    return new Response('Offline — resource not cached', {
+                        status: 503,
+                        statusText: 'Service Unavailable',
+                    });
                 });
-
-            return cached || fetched;
-        })
+            })
     );
 });
