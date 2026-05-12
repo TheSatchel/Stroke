@@ -46,7 +46,8 @@ import SliderWidget from './widgets/SliderWidget.js';
 import ChoiceWidget from './widgets/ChoiceWidget.js';
 import ImageWidget from './widgets/ImageWidget.js';
 import CanvasRefImageWidget from './widgets/CanvasRefImageWidget.js';
-import GenerateCallWidget from './widgets/GenerateCallWidget.js';
+import GenerateCallWidget from './widgets/generate-call/GenerateCallWidget.js';
+import RegionPromptWidget from './widgets/RegionPromptWidget.js';
 
 // ============================================================
 // 默认 Tab 配置
@@ -74,32 +75,6 @@ export const defaultConfigTabs = [
     removable: true,
     defaultValue: '',
     promptFormat: '',
-  },
-  {
-    id: 'size',
-    title: '图像尺寸',
-    describe: '选择输出图像的分辨率',
-    type: 'choice',
-    order: 3,
-    removable: true,
-    options: ['1024×1024', '1024×512', '512×1024', '768×768', '1280×720'],
-    defaultValue: '1024×1024',
-    displayAs: 'dropdown',
-    promptFormat: '尺寸: {value}',
-  },
-  {
-    id: 'region_prompt',
-    title: '区域 Prompt',
-    describe: '针对画圈区域的补充描述',
-    type: 'text',
-    order: 99,
-    removable: false,
-    hidden: true,
-    multiline: true,
-    rows: 2,
-    placeholder: '针对画圈区域的补充描述...',
-    defaultValue: '',
-    promptFormat: '区域: {value}',
   },
   {
     id: 'generate_call',
@@ -204,8 +179,9 @@ export const widgetRegistry = {
   slider: SliderWidget,
   choice: ChoiceWidget,
   image: ImageWidget,
-  canvas_ref_image: CanvasRefImageWidget,
+  canvas_ref_image: CanvasRefImageWidget, // 在 App.js this.canvas.onCanvasImage 注册里面
   generate_call: GenerateCallWidget,
+  region_prompt: RegionPromptWidget,
 };
 
 // ============================================================
@@ -226,6 +202,17 @@ export function tabsToPrompt(tabValues, tabDefs, endIndex) {
   for (let i = 0; i < limit && i < tabDefs.length; i++) {
     const def = tabDefs[i];
     if (def.type === 'generate_call') continue;
+
+    // region_prompt 类型：val 已经包含完整格式化文本，直接加入
+    if (def.type === 'region_prompt') {
+      const val = tabValues[def.id];
+      if (val && typeof val === 'string' && val.trim()) {
+        parts.push(val.trim());
+      }
+      continue;
+    }
+
+    // 其他类型：走 promptFormat
     const val = tabValues[def.id];
     if (val === undefined || val === null || val === '' || val === false) continue;
     const fmt = def.promptFormat;

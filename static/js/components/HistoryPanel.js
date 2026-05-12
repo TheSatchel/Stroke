@@ -2,7 +2,7 @@
  * HistoryPanel.js — 左栏历史版本
  */
 
-import { el } from './utils.js';
+import { el } from '../utils/DOM.js';
 
 export default class HistoryPanel {
   constructor(container) {
