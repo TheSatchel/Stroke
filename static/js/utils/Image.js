@@ -1,9 +1,9 @@
 /**
- * imageUtils.js — 图片格式转换工具
+ * Image.js — 图片格式转换工具
  * 将 SVG data URL 转换为 JPEG，用于确保输入图片格式兼容 AI API。
  */
 
-import { showWarningToast } from '../components/Toast.js';
+import { showWarningToast } from './Toast.js';
 
 /**
  * 将一个 SVG data URL 转换为 JPEG data URL。
@@ -46,4 +46,31 @@ export async function convertSvgToJpegIfNeeded(dataUrl) {
     return await svgDataUrlToJpeg(dataUrl);
   }
   return dataUrl;
+}
+/**
+ * 从 data URL 或 SVG 生成缩略图
+ * @param {string} source - data URL 或 SVG 字符串
+ * @param {number} [maxWidth=128] - 缩略图最大宽度
+ * @returns {Promise<string>} JPEG data URL 缩略图
+ */
+export async function createThumbnail(source, maxWidth = 128) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const scale = maxWidth / img.naturalWidth;
+      canvas.width = maxWidth;
+      canvas.height = Math.round(img.naturalHeight * scale);
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = (err) => {
+      console.warn('[imageUtils] 缩略图生成失败', err);
+      resolve(source);
+    };
+    img.src = source;
+  });
 }
