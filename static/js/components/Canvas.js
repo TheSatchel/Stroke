@@ -1,25 +1,63 @@
 /**
  * Canvas.js — 中栏画布
+ *
+ * 支持：点选工具 (sel) + 自由多边形框选 (las)
+ * 确认/取消按钮、多选区叠加、双击清画布
  */
 
-import { el, svgEl, iconSvg } from './utils.js';
+import { el, svgEl, iconSvg } from '../utils/DOM.js';
 import { isValidSvg } from '../adapters/ResponseParser.js';
-import { showWarningToast } from './Toast.js';
+import { showWarningToast, showToast } from '../utils/Toast.js';
+import SvgOverlay from './canvas/SvgOverlay.js';
+import SegmentationService from '../services/SegmentationService.js';
 
 export default class Canvas {
   constructor(container) {
     this.container = container;
     this.tool = 'las';
-    this.lassoing = false;
-    this.lx = 0;
-    this.ly = 0;
     this.currentHistory = 0;
-    this.onLassoDone = null;
+    this.onSelectionConfirm = null;    // (data) => void
+    this.onSelectionCancel = null;     // () => void
     this.onCanvasImage = null;
     this.onClearCanvas = null;
     this._isShowingUserImage = false;
     this._userImageDataUrl = '';
+
+    // 选区状态
+    this._selectionData = null;
+    this._confirmedSelections = {};
+    this._lassoPoints = [];
+    this._isDrawing = false;
+    this._lastSampleTime = 0;
+
+    // AI 分割服务
+    this._segService = SegmentationService.instance;
+    this._segOverlay = null;
+    this._segmentationInProgress = false;
+
+    // WASM 被禁用时弹 Toast（仅首次）
+    if (this._segService.state === 'WASM_DISABLED' && !this._segService._wasmDisabledToastShown) {
+      this._segService._wasmDisabledToastShown = true;
+      showToast('WebAssembly 被禁用，AI 分割模型将被禁用', 'error', 10000);
+    }
+
+    // 如果 WASM 可用，后台预加载模型
+    if (this._segService.state === 'IDLE') {
+      this._segService.load().then(() => this._updateSelectButtonState());
+    }
+
     this.render();
+  }
+
+  _updateSelectButtonState() {
+    const state = this._segService.state;
+    const disabled = (state === 'WASM_DISABLED');
+    if (this.btnSel) {
+      this.btnSel.disabled = disabled;
+      this.btnSel.title = disabled
+        ? 'WebAssembly 被禁用，AI 选择不可用'
+        : '点击选择区域 (AI 分割)';
+    }
   }
 
   render() {
@@ -28,25 +66,372 @@ export default class Canvas {
 
     this.canvasArea = el('div', 'canvas-area');
     this.canvasImg = el('div', 'canvas-img', { id: 'canvas' });
-    this.canvasImg.addEventListener('mousedown', e => this.startL(e));
-    this.canvasImg.addEventListener('mousemove', e => this.moveL(e));
-    this.canvasImg.addEventListener('mouseup', e => this.endL(e));
 
-    // 画布占位区：整块可点击上传 / 拖拽
+    this.canvasImg.addEventListener('mousedown', e => this._onMouseDown(e));
+    this.canvasImg.addEventListener('mousemove', e => this._onMouseMove(e));
+    this.canvasImg.addEventListener('mouseup', e => this._onMouseUp(e));
+    this.canvasImg.addEventListener('dblclick', e => this._onDblClick(e));
+
     this.cph = this._createPlaceholder();
     this.canvasImg.appendChild(this.cph);
 
-    this.lEl = el('div', 'lasso-ring', { id: 'lEl', style: 'display:none' });
-    this.lLbl = el('div', 'lasso-lbl', { id: 'lLbl', text: '区域 prompt', style: 'display:none' });
-    this.canvasImg.appendChild(this.lEl);
-    this.canvasImg.appendChild(this.lLbl);
+    this._svgOverlay = new SvgOverlay(this.canvasImg);
+    this.canvasImg.appendChild(this._svgOverlay.getElement());
+
+    this._confirmBar = this._createConfirmBar();
+    this.canvasImg.appendChild(this._confirmBar);
+
+    this._selMarker = this._createSelMarker();
+    this.canvasImg.appendChild(this._selMarker);
 
     this.canvasArea.appendChild(this.canvasImg);
     this.container.appendChild(this.canvasArea);
 
+    this._buildToolbar();
+  }
+
+  // ================================================================
+  //  确认栏
+  // ================================================================
+  _createConfirmBar() {
+    const bar = el('div', 'canvas-confirm-bar', { style: 'display:none' });
+
+    this._btnConfirm = el('button', 'canvas-confirm-btn canvas-confirm-btn--ok', {
+      html: '✓',
+      title: '确认选区',
+      onclick: () => this._confirmSelection()
+    });
+    bar.appendChild(this._btnConfirm);
+
+    this._btnCancel = el('button', 'canvas-confirm-btn canvas-confirm-btn--cancel', {
+      html: '✗',
+      title: '取消选区',
+      onclick: () => this._cancelSelection()
+    });
+    bar.appendChild(this._btnCancel);
+
+    return bar;
+  }
+
+  _showConfirmBar() { this._confirmBar.style.display = 'flex'; }
+  _hideConfirmBar() { this._confirmBar.style.display = 'none'; }
+
+  _createSelMarker() {
+    const m = el('div', 'sel-marker', { style: 'display:none' });
+    return m;
+  }
+
+  _showSelMarker(x, y) {
+    this._selMarker.style.display = 'block';
+    this._selMarker.style.left = x + 'px';
+    this._selMarker.style.top = y + 'px';
+  }
+  _hideSelMarker() { this._selMarker.style.display = 'none'; }
+
+  // ================================================================
+  //  AI 分割点选处理
+  // ================================================================
+  async _handlePointSelect(clientX, clientY, rect) {
+    if (this._segmentationInProgress) return;
+    this._clearActiveSelection();
+
+    const state = this._segService.state;
+
+    if (state === 'WASM_DISABLED' || state === 'ERROR') {
+      this._handlePointSelectFallback(clientX, clientY, rect);
+      return;
+    }
+
+    if (state === 'DOWNLOADING') {
+      showToast('⏳ AI 分割模型还在下载中，请稍后再试…', 'warning', 4000);
+      return;
+    }
+
+    if (state === 'IDLE') {
+      showToast('⏳ AI 分割模型下载中，请稍后重试…', 'warning', 4000);
+      this._segService.load().then(() => this._updateSelectButtonState());
+      return;
+    }
+
+    // READY — 执行 AI 分割
+    const imgDataUrl = this._userImageDataUrl;
+    const imgEl = this.canvasImg.querySelector('img');
+    if (!imgEl) {
+      this._handlePointSelectFallback(clientX, clientY, rect);
+      return;
+    }
+
+    this._segmentationInProgress = true;
+
+    const scaleX = imgEl.naturalWidth / imgEl.clientWidth;
+    const scaleY = imgEl.naturalHeight / imgEl.clientHeight;
+    const imgX = clientX * scaleX;
+    const imgY = clientY * scaleY;
+
+    try {
+      const result = await this._segService.segmentAtPoint(imgDataUrl, imgX, imgY);
+      if (result) {
+        // 将 mask 坐标从 512×512 模型空间映射回 canvas 显示空间
+        const maskW = 512;
+        const maskH = 512;
+        const invScaleX = imgEl.clientWidth / maskW;
+        const invScaleY = imgEl.clientHeight / maskH;
+        const displayPoints = result.maskPoints.map(p => ({
+          x: p.x * invScaleX,
+          y: p.y * invScaleY,
+        }));
+
+        this._selectionData = {
+          type: 'segmentation',
+          points: displayPoints,
+          classLabel: result.classLabel,
+          imageDataUrl: imgDataUrl,
+          canvasWidth: rect.width,
+          canvasHeight: rect.height,
+        };
+        this._showSegmentationPreview(displayPoints);
+        this._showConfirmBar();
+      } else {
+        // 分割失败 → 回退坐标点选
+        this._handlePointSelectFallback(clientX, clientY, rect);
+      }
+    } catch (err) {
+      console.error('[Canvas] 分割推理失败:', err);
+      this._handlePointSelectFallback(clientX, clientY, rect);
+    } finally {
+      this._segmentationInProgress = false;
+    }
+  }
+
+  _handlePointSelectFallback(clientX, clientY, rect) {
+    this._selectionData = {
+      type: 'point',
+      x: clientX, y: clientY,
+      imageDataUrl: this._userImageDataUrl,
+      canvasWidth: rect.width, canvasHeight: rect.height,
+    };
+    this._showSelMarker(clientX, clientY);
+    this._showConfirmBar();
+  }
+
+  _showSegmentationPreview(maskPoints, color = '#3B82F6') {
+    if (!this._segOverlay) {
+      this._segOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      this._segOverlay.setAttribute('class', 'lasso-svg');
+      this.canvasImg.appendChild(this._segOverlay);
+    }
+    this._segOverlay.innerHTML = '';
+
+    const pointsStr = maskPoints.map(p => `${p.x},${p.y}`).join(' ');
+    const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    poly.setAttribute('points', pointsStr);
+    poly.setAttribute('fill', color);
+    poly.setAttribute('fill-opacity', '0.35');
+    poly.setAttribute('stroke', color);
+    poly.setAttribute('stroke-width', '2');
+    poly.setAttribute('stroke-dasharray', '4 2');
+    this._segOverlay.appendChild(poly);
+  }
+
+  /**
+   * 更新所有已确认选区的叠加层
+   */
+  updateAllMasks(confirmedRegions) {
+    if (!this._segOverlay) {
+      this._segOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      this._segOverlay.setAttribute('class', 'lasso-svg');
+      this.canvasImg.appendChild(this._segOverlay);
+    }
+    this._segOverlay.innerHTML = '';
+
+    for (const region of confirmedRegions) {
+      const { points, color, label } = region;
+      if (!points || points.length < 3) continue;
+
+      const pointsStr = points.map(p => `${p.x},${p.y}`).join(' ');
+      const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+      const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      poly.setAttribute('points', pointsStr);
+      poly.setAttribute('fill', color);
+      poly.setAttribute('fill-opacity', '0.35');
+      poly.setAttribute('stroke', color);
+      poly.setAttribute('stroke-width', '1.5');
+      group.appendChild(poly);
+
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      const minX = Math.min(...points.map(p => p.x));
+      const minY = Math.min(...points.map(p => p.y));
+      text.setAttribute('x', minX);
+      text.setAttribute('y', minY - 4);
+      text.setAttribute('fill', '#fff');
+      text.setAttribute('font-size', '12');
+      text.setAttribute('font-weight', 'bold');
+      text.textContent = label;
+      group.appendChild(text);
+
+      this._segOverlay.appendChild(group);
+    }
+  }
+
+  // ================================================================
+  //  鼠标事件
+  // ================================================================
+  _onMouseDown(e) {
+    if (!this._isShowingUserImage) return;
+    const rect = this.canvasImg.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (this.tool === 'sel') {
+      e.preventDefault();
+      this._handlePointSelect(x, y, rect);
+    } else if (this.tool === 'las') {
+      this._isDrawing = true;
+      this._clearActiveSelection();
+      this._lassoPoints = [{ x, y }];
+      this._lastSampleTime = Date.now();
+      this._svgOverlay.hideLassoClose();
+      this._svgOverlay.updateLassoPath(this._lassoPoints);
+    }
+  }
+
+  _onMouseMove(e) {
+    if (this.tool === 'las' && this._isDrawing) {
+      const rect = this.canvasImg.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const now = Date.now();
+      const last = this._lassoPoints[this._lassoPoints.length - 1];
+      const dx = last ? x - last.x : 0;
+      const dy = last ? y - last.y : 0;
+      if (Math.sqrt(dx*dx + dy*dy) > 3 || now - this._lastSampleTime > 30) {
+        this._lassoPoints.push({ x, y });
+        this._lastSampleTime = now;
+        this._svgOverlay.updateLassoPath(this._lassoPoints);
+      }
+      if (this._lassoPoints.length >= 1) {
+        const first = this._lassoPoints[0];
+        this._svgOverlay.setLassoClose(x, y, first.x, first.y);
+      }
+    }
+  }
+
+  _onMouseUp(_e) {
+    if (this.tool !== 'las' || !this._isDrawing) return;
+    this._isDrawing = false;
+    this._svgOverlay.hideLassoClose();
+    if (this._lassoPoints.length >= 1) {
+      this._lassoPoints.push({ ...this._lassoPoints[0] });
+    }
+    if (this._lassoPoints.length < 5 || this._calcPathLength() < 20) {
+      this._clearActiveSelection();
+      return;
+    }
+    const rect = this.canvasImg.getBoundingClientRect();
+    this._selectionData = {
+      type: 'lasso',
+      points: [...this._lassoPoints],
+      imageDataUrl: this._userImageDataUrl,
+      canvasWidth: rect.width, canvasHeight: rect.height
+    };
+    this._showConfirmBar();
+  }
+
+  _onDblClick(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    this.clear();
+    if (this.onClearCanvas) this.onClearCanvas();
+  }
+
+  // ================================================================
+  //  Lasso 路径 — 委托给 SvgOverlay
+  // ================================================================
+  _calcPathLength() {
+    let len = 0;
+    for (let i = 1; i < this._lassoPoints.length; i++) {
+      const dx = this._lassoPoints[i].x - this._lassoPoints[i - 1].x;
+      const dy = this._lassoPoints[i].y - this._lassoPoints[i - 1].y;
+      len += Math.sqrt(dx * dx + dy * dy);
+    }
+    return len;
+  }
+
+  // ================================================================
+  //  选区确认 / 取消
+  // ================================================================
+  _confirmSelection() {
+    if (!this._selectionData) return;
+    this._hideConfirmBar();
+    if (this.tool === 'las') {
+      this._svgOverlay.setLassoStrokeDash('none');
+    }
+    // 分段预览确认后去掉虚线
+    if (this._segOverlay) {
+      const poly = this._segOverlay.querySelector('polygon');
+      if (poly) poly.setAttribute('stroke-dasharray', '');
+    }
+    if (this.onSelectionConfirm) {
+      this.onSelectionConfirm({ ...this._selectionData });
+    }
+  }
+
+  _cancelSelection() {
+    this._clearActiveSelection();
+    this._hideConfirmBar();
+    if (this._segOverlay) this._segOverlay.innerHTML = '';
+    if (this.onSelectionCancel) this.onSelectionCancel();
+  }
+
+  _clearActiveSelection() {
+    this._selectionData = null;
+    this._lassoPoints = [];
+    this._hideSelMarker();
+    this._svgOverlay.hideLassoPath();
+    this._svgOverlay.hideLassoClose();
+    this._svgOverlay.setLassoStrokeDash('4 3');
+    this._svgOverlay.updateLassoPath([]);
+    if (this._segOverlay) this._segOverlay.innerHTML = '';
+  }
+
+  // ================================================================
+  //  已确认选区管理
+  // ================================================================
+  addConfirmedSelection(label, data) {
+    this._confirmedSelections[label] = data;
+    this._svgOverlay.addConfirmedSelection(label, data);
+  }
+
+  removeConfirmedSelection(label) {
+    delete this._confirmedSelections[label];
+    this._svgOverlay.removeConfirmedSelection(label);
+  }
+
+  _clearAllSelections() {
+    this._clearActiveSelection();
+    this._confirmedSelections = {};
+    this._svgOverlay.clearAllSelections();
+  }
+
+  // ================================================================
+  //  工具栏
+  // ================================================================
+  _buildToolbar() {
     this.toolbar = el('div', 'canvas-toolbar');
 
-    this.btnSel = el('button', 'tool-btn', { id: 'btnSel', onclick: () => this.setTool('sel') });
+    const wasmDisabled = this._segService.state === 'WASM_DISABLED';
+    this.btnSel = el('button', 'tool-btn', {
+      id: 'btnSel',
+      disabled: wasmDisabled,
+      title: wasmDisabled
+        ? 'WebAssembly 被禁用，AI 选择不可用'
+        : '点击选择区域 (AI 分割)',
+      onclick: () => {
+        if (wasmDisabled) return;
+        this.setTool('sel');
+      }
+    });
     const selIcon = iconSvg(13, 13, [
       svgEl('path', { d: 'M2 2l4 10 2-4 4-2L2 2z', stroke: 'currentColor', 'stroke-width': '1.5' })
     ]);
@@ -55,28 +440,36 @@ export default class Canvas {
 
     this.btnLas = el('button', 'tool-btn active', { id: 'btnLas', onclick: () => this.setTool('las') });
     const lasIcon = iconSvg(13, 13, [
-      svgEl('circle', { cx: '7', cy: '7', r: '5', 'stroke-dasharray': '2 1.5', stroke: 'currentColor', 'stroke-width': '1.5' }),
-      svgEl('path', { d: 'M7 12v1.5M11 7h1.5', stroke: 'currentColor', 'stroke-width': '1.5' })
+      svgEl('path', { d: 'M2 2h9l-2 3 2 3H2V2z', stroke: 'currentColor', 'stroke-width': '1.3', 'stroke-dasharray': '2 1.5' })
     ]);
     this.btnLas.appendChild(lasIcon);
-    this.btnLas.appendChild(document.createTextNode('画圈'));
+    this.btnLas.appendChild(document.createTextNode('框选'));
 
     this.toolbar.appendChild(this.btnSel);
     this.toolbar.appendChild(this.btnLas);
     this.toolbar.appendChild(el('div', 'sflex'));
     this.tHint = el('span', '', {
       id: 'tHint',
-      text: '拖拽画圈以标注区域',
+      text: '拖拽绘制多边形选区',
       style: 'font-size:11px;color:var(--color-text-tertiary)'
     });
     this.toolbar.appendChild(this.tHint);
     this.container.appendChild(this.toolbar);
   }
 
-  /**
-   * Create the full placeholder element (with icon, text, and file input).
-   * Returns the cph element (hidden by default).
-   */
+  setTool(t) {
+    this.tool = t;
+    this.btnSel.classList.toggle('active', t === 'sel');
+    this.btnLas.classList.toggle('active', t === 'las');
+    this.tHint.textContent = t === 'las' ? '拖拽绘制多边形选区' : '点击图片选择区域';
+    this.canvasImg.style.cursor = t === 'las' ? 'crosshair' : 'default';
+    this._clearActiveSelection();
+    this._hideConfirmBar();
+  }
+
+  // ================================================================
+  //  占位区
+  // ================================================================
   _createPlaceholder() {
     const cph = el('div', 'canvas-placeholder', { id: 'cph' });
     const phInner = el('div', 'canvas-placeholder-inner');
@@ -89,65 +482,20 @@ export default class Canvas {
     cph.appendChild(fileInput);
 
     cph.addEventListener('click', () => fileInput.click());
-    cph.addEventListener('dragover', (e) => { e.preventDefault(); cph.classList.add('drag-over'); });
-    cph.addEventListener('dragleave', () => cph.classList.remove('drag-over'));
+    cph.addEventListener('dragover', (e) => { e.preventDefault(); cph.classList.add('canvas-placeholder--dragover'); });
+    cph.addEventListener('dragleave', () => cph.classList.remove('canvas-placeholder--dragover'));
     cph.addEventListener('drop', (e) => {
       e.preventDefault();
-      cph.classList.remove('drag-over');
+      cph.classList.remove('canvas-placeholder--dragover');
       if (e.dataTransfer.files[0]) this._handleCanvasImageFile(e.dataTransfer.files[0]);
     });
 
     return cph;
   }
 
-  setTool(t) {
-    this.tool = t;
-    this.btnSel.classList.toggle('active', t === 'sel');
-    this.btnLas.classList.toggle('active', t === 'las');
-    this.tHint.textContent = t === 'las' ? '拖拽画圈以标注区域' : '点击选择区域';
-    this.canvasImg.style.cursor = t === 'las' ? 'crosshair' : 'default';
-  }
-
-  startL(e) {
-    if (this.tool !== 'las') return;
-    this.lassoing = true;
-    const r = this.canvasImg.getBoundingClientRect();
-    this.lx = e.clientX - r.left;
-    this.ly = e.clientY - r.top;
-    this.lEl.style.display = 'block';
-    this.lEl.style.left = this.lx + 'px';
-    this.lEl.style.top = this.ly + 'px';
-    this.lEl.style.width = '0';
-    this.lEl.style.height = '0';
-    this.lLbl.style.display = 'none';
-  }
-
-  moveL(e) {
-    if (!this.lassoing) return;
-    const r = this.canvasImg.getBoundingClientRect();
-    const sz = Math.max(
-      Math.abs(e.clientX - r.left - this.lx),
-      Math.abs(e.clientY - r.top - this.ly)
-    );
-    this.lEl.style.left = (this.lx - sz / 2) + 'px';
-    this.lEl.style.top = (this.ly - sz / 2) + 'px';
-    this.lEl.style.width = sz + 'px';
-    this.lEl.style.height = sz + 'px';
-  }
-
-  endL(_e) {
-    if (!this.lassoing) return;
-    this.lassoing = false;
-    if (parseFloat(this.lEl.style.width) > 20) {
-      this.lLbl.style.display = 'block';
-      this.lLbl.style.left = (parseFloat(this.lEl.style.left) + parseFloat(this.lEl.style.width) / 2 - 30) + 'px';
-      this.lLbl.style.top = (parseFloat(this.lEl.style.top) - 20) + 'px';
-      if (this.onLassoDone) this.onLassoDone();
-    } else {
-      this.lEl.style.display = 'none';
-    }
-  }
-
+  // ================================================================
+  //  图片管理
+  // ================================================================
   _handleCanvasImageFile(file) {
     if (!file || !file.type.startsWith('image/')) return;
     if (file.size > 10 * 1024 * 1024) {
@@ -157,6 +505,7 @@ export default class Canvas {
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = reader.result;
+      this._clearAllSelections();
       this.setCanvasImage(dataUrl);
       if (this.onCanvasImage) this.onCanvasImage(dataUrl);
     };
@@ -167,12 +516,19 @@ export default class Canvas {
     if (!dataUrl) return;
     this._isShowingUserImage = true;
     this._userImageDataUrl = dataUrl;
+    this._clearAllSelections();
+
     if (this.cph) this.cph.style.display = 'none';
     this.canvasImg.style.backgroundImage = 'none';
-    this.canvasImg.innerHTML = '';
-    this.canvasImg.innerHTML = `<img src="${dataUrl}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;border-radius:var(--border-radius-lg)" />`;
 
-    // Delete button
+    const svgOverlayEl = this._svgOverlay.getElement();
+    const confirmBar = this._confirmBar;
+    const selMarker = this._selMarker;
+
+    this._segOverlay = null;
+    this.canvasImg.innerHTML = '';
+    this.canvasImg.innerHTML = `<img src="${dataUrl}" draggable="false" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;border-radius:var(--border-radius-lg);-webkit-user-drag:none;user-select:none" />`;
+
     const delBtn = el('button', 'canvas-img-delete', {
       html: '×',
       title: '清除画布图片',
@@ -183,10 +539,12 @@ export default class Canvas {
     });
     this.canvasImg.appendChild(delBtn);
 
-    this.canvasImg.appendChild(this.lEl);
-    this.canvasImg.appendChild(this.lLbl);
+    this.canvasImg.appendChild(svgOverlayEl);
+    this.canvasImg.appendChild(confirmBar);
+    this.canvasImg.appendChild(selMarker);
+
     this.cph = this._createPlaceholder();
-    this.cph.style.display = 'none';  // 已有图片，占位区隐藏
+    this.cph.style.display = 'none';
     this.canvasImg.appendChild(this.cph);
   }
 
@@ -199,49 +557,59 @@ export default class Canvas {
   }
 
   clear() {
+    this._clearAllSelections();
+    this._hideConfirmBar();
+    this._segService.clearCache();
+
+    const svgOverlayEl = this._svgOverlay.getElement();
+    const confirmBar = this._confirmBar;
+    const selMarker = this._selMarker;
+
+    this._segOverlay = null;
     this.canvasImg.innerHTML = '';
     this.canvasImg.style.backgroundImage = 'none';
     this._isShowingUserImage = false;
     this._userImageDataUrl = '';
+
     this.canvasImg.appendChild(this.cph);
-    this.canvasImg.appendChild(this.lEl);
-    this.canvasImg.appendChild(this.lLbl);
     this.cph.style.display = 'flex';
-    this.lEl.style.display = 'none';
-    this.lLbl.style.display = 'none';
+
+    this.canvasImg.appendChild(svgOverlayEl);
+    this.canvasImg.appendChild(confirmBar);
+    this.canvasImg.appendChild(selMarker);
   }
 
   showHistory(i) {
     this.currentHistory = i;
     if (i !== 0) {
-      this.lEl.style.display = 'none';
-      this.lLbl.style.display = 'none';
+      this._clearActiveSelection();
+      this._hideConfirmBar();
     }
   }
 
-  /**
-   * 加载版本内容到画布
-   * @param {ImageResult|Object|string} imageResult
-   *   - { type:'svg', svg:string } → 内嵌 SVG
-   *   - { type:'raster', dataUrl:string } → 内嵌 <img>
-   *   - 纯字符串（向后兼容） → 当作 SVG 处理
-   */
   loadVersion(imageResult) {
     this._isShowingUserImage = false;
     this._userImageDataUrl = '';
+    this._clearAllSelections();
+    this._hideConfirmBar();
+
     if (this.cph) this.cph.style.display = 'none';
     this.canvasImg.style.backgroundImage = 'none';
+    this._segOverlay = null;
+
+    const svgOverlayEl = this._svgOverlay.getElement();
+    const confirmBar = this._confirmBar;
+    const selMarker = this._selMarker;
+
     this.canvasImg.innerHTML = '';
 
-    // 类型判断（向后兼容纯 SVG 字符串）
     if (typeof imageResult === 'string') {
       imageResult = { type: 'svg', svg: imageResult };
     }
 
     if (imageResult && imageResult.type === 'raster' && imageResult.dataUrl) {
-      // 光栅图：用 <img> 标签内嵌
       this.canvasImg.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">
-        <img src="${imageResult.dataUrl}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:4px" />
+        <img src="${imageResult.dataUrl}" draggable="false" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:4px;-webkit-user-drag:none;user-select:none;pointer-events:none" />
       </div>`;
     } else if (imageResult && imageResult.svg && isValidSvg(imageResult.svg)) {
       this.canvasImg.innerHTML = `<svg width="100%" height="100%" viewBox="0 0 56 56" fill="none" preserveAspectRatio="xMidYMid meet">${imageResult.svg}</svg>`;
@@ -252,7 +620,6 @@ export default class Canvas {
       </div>`;
     }
 
-    // Delete button (for all display types)
     const delBtn = el('button', 'canvas-img-delete', {
       html: '×',
       title: '清除画布图片',
@@ -263,11 +630,12 @@ export default class Canvas {
     });
     this.canvasImg.appendChild(delBtn);
 
-    // 重新挂载套索层 + 占位符
-    this.canvasImg.appendChild(this.lEl);
-    this.canvasImg.appendChild(this.lLbl);
+    this.canvasImg.appendChild(svgOverlayEl);
+    this.canvasImg.appendChild(confirmBar);
+    this.canvasImg.appendChild(selMarker);
+
     this.cph = this._createPlaceholder();
-    this.cph.style.display = 'none';  // loadVersion 已有内容，占位区隐藏
+    this.cph.style.display = 'none';
     this.canvasImg.appendChild(this.cph);
   }
 }
