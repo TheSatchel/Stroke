@@ -5,17 +5,23 @@
  * 不直接处理 HTTP 请求，只做注册、切换、协调。
  *
  * 使用示例：
- *   import { GeneratorService } from './adapter.js';
+ *   import { GeneratorService } from './Adapter.js';
  *   const gen = new GeneratorService();
  *   gen.use('openai', { apiKey: 'sk-...', model: 'dall-e-3' });
  *   const svg = await gen.generate({ prompt, imageBase64 });
  */
 
-import { XianyuAdapter } from './adapters/XianyuAdapter.js';
-import { showWarningToast } from './components/Toast.js';
+import { GPTChatAdapter } from './adapters/GeminiAdapter.js';
+import { GPTImageAdapter } from './adapters/GPTImageAdapter.js';
+import { XianyuGeminiAdapter } from './adapters/XianyuGeminiAdapter.js';
+import { XianyuGPTAdapter } from './adapters/XianyuGPTAdapter.js';
+import { showWarningToast } from './utils/Toast.js';
 
 const BUILTIN = [
-  XianyuAdapter
+  GPTChatAdapter,
+  GPTImageAdapter,
+  XianyuGeminiAdapter,
+  XianyuGPTAdapter
 ];
 
 export class GeneratorService {
