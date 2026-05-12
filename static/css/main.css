@@ -1,0 +1,55 @@
+/* ============================================================
+   Stroke · Main Stylesheet (ITCSS Architecture)
+   ============================================================
+
+   Layer 1: Settings ...... CSS custom properties
+   Layer 3: Generic ....... Reset / normalize
+   Layer 4: Elements ...... Bare HTML elements
+   Layer 5: Objects ....... Layout & structural patterns
+   Layer 6: Components .... UI widgets, sections, modals
+   Layer 7: Utilities ..... Atomic helper classes
+
+   NOTE: This file replaces workspace.css.
+   All styles are now split by layer and component.
+   ============================================================ */
+
+/* ---- 1. Settings ---- */
+@import 'settings/variables.css';
+
+/* ---- 3. Generic ---- */
+@import 'generic/reset.css';
+
+/* ---- 4. Elements ---- */
+@import 'elements/body.css';
+@import 'elements/scrollbar.css';
+
+/* ---- 5. Objects ---- */
+@import 'objects/layout-app.css';
+@import 'objects/resize-handle.css';
+
+/* ---- 6. Components ---- */
+@import 'components/col-header.css';
+@import 'components/history-panel.css';
+@import 'components/version-stepper.css';
+@import 'components/canvas-area.css';
+@import 'components/canvas-toolbar.css';
+@import 'components/gen-btn.css';
+@import 'components/drag-section.css';
+@import 'components/upload-zone.css';
+@import 'components/prompt-region.css';
+@import 'components/param-row.css';
+@import 'components/right-footer.css';
+@import 'components/settings-modal.css';
+@import 'components/toast.css';
+@import 'components/add-tab-popup.css';
+@import 'components/tab-context-menu.css';
+@import 'components/widget-base.css';
+@import 'components/widget-slider.css';
+@import 'components/widget-toggle.css';
+@import 'components/widget-radio.css';
+@import 'components/widget-image.css';
+@import 'components/generate-call-widget.css';
+@import 'components/config-modal-extras.css';
+
+/* ---- 7. Utilities ---- */
+@import 'utilities/utilities.css';

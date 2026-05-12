@@ -1,0 +1,67 @@
+/* ============================================================
+   ITCSS Layer 1: Settings — CSS Custom Properties / Design Tokens
+   These variables are dynamically injected by index.html
+   and SettingsModal.js applyFullScheme().
+   This file provides fallback defaults for development only.
+   ============================================================ */
+
+:root {
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+
+  /* ---- Radii ---- */
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+  --border-radius-sm: 6px;
+
+  /* ---- Accent (fallback, overridden by JS) ---- */
+  --color-accent: #534AB7;
+  --color-accent-hover: #3F3794;
+  --color-accent-ring: #7A72D4;
+  --color-accent-bg: #EFEDFA;
+  --color-accent-border: #D5D0EE;
+  --color-accent-text: #201A6E;
+  --color-accent-shadow: hsla(248, 40%, 45%, 0.12);
+  --color-accent-shadow-active: hsla(248, 40%, 35%, 0.20);
+
+  /* ---- Backgrounds ---- */
+  --color-background-primary: hsl(248, 15%, 94%);
+  --color-background-secondary: hsl(248, 12%, 90%);
+  --color-background-tertiary: hsl(248, 10%, 86%);
+
+  /* ---- Text ---- */
+  --color-text-primary: hsl(248, 12%, 28%);
+  --color-text-secondary: hsl(248, 10%, 38%);
+  --color-text-tertiary: hsl(248, 9%, 43%);
+
+  /* ---- Borders ---- */
+  --color-border-primary: hsl(248, 80%, 45%);
+  --color-border-secondary: hsl(248, 12%, 76%);
+  --color-border-tertiary: hsl(248, 10%, 80%);
+
+  /* ---- Overlay & Context Menu ---- */
+  --color-overlay: rgba(0,0,0,0.35);
+  --color-context-menu: hsla(248, 15%, 94%, 0.86);
+  --color-context-menu-dark: hsla(248, 15%, 94%, 0.86);
+  --color-white: #ffffff;
+
+  /* ---- Semantic: Success ---- */
+  --color-success: hsl(120, 55%, 30%);
+  --color-success-bg: hsla(120, 50%, 35%, 0.10);
+
+  /* ---- Semantic: Danger ---- */
+  --color-danger: hsl(5, 60%, 42%);
+  --color-danger-hover: hsl(5, 60%, 29%);
+  --color-danger-bg: hsla(5, 60%, 42%, 0.12);
+
+  /* ---- Semantic: Error Toast ---- */
+  --color-error-bg: hsl(6, 72%, 95%);
+  --color-error-text: hsl(6, 45%, 16%);
+  --color-error-border: hsl(6, 40%, 64%);
+  --color-error-shadow: hsla(6, 72%, 40%, 0.30);
+
+  /* ---- Semantic: Warning Toast ---- */
+  --color-warning-bg: hsl(32, 90%, 95%);
+  --color-warning-text: hsl(32, 63%, 18%);
+  --color-warning-border: hsl(32, 50%, 68%);
+  --color-warning-shadow: hsla(32, 90%, 38%, 0.32);
+}

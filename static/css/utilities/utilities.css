@@ -1,0 +1,8 @@
+/* ============================================================
+   ITCSS Layer 7: Utilities — Atomic helper classes
+   High-specificity, single-purpose overrides.
+   ============================================================ */
+
+.sflex {
+  flex: 1;
+}

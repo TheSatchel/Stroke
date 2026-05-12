@@ -1,0 +1,90 @@
+/* ============================================================
+   ITCSS Layer 6: Components — ConfigModal Extras
+   Used by ConfigModal.js (radio group, presets, dynamic params)
+   ============================================================ */
+
+.sm-radio-group {
+  display: flex;
+  gap: 14px;
+  margin: 6px 0 8px;
+}
+
+.sm-radio-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  user-select: none;
+}
+
+.sm-radio-item input[type="radio"] {
+  accent-color: var(--color-accent);
+  cursor: pointer;
+  margin: 0;
+}
+
+.sm-model-select-row {
+  margin-top: 6px;
+}
+
+.sm-dynamic-summary {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 6px;
+}
+
+.sm-dynamic-summary:hover {
+  color: var(--color-text-primary);
+}
+
+.sm-dynamic-wrap {
+  padding: 4px 0;
+}
+
+.sm-preset-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.sm-preset-select {
+  flex: 1;
+}
+
+.sm-preset-save-btn,
+.sm-preset-del-btn {
+  padding: 5px 10px;
+  font-size: 11px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 6px;
+  background: var(--color-background-primary);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.sm-preset-save-btn:hover {
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+}
+
+.sm-preset-del-btn:hover {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.sm-params-container {
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  background: var(--color-background-secondary);
+}

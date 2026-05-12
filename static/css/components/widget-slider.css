@@ -1,0 +1,75 @@
+/* ============================================================
+   ITCSS Layer 6: Components — Widget Slider
+   Used by SliderWidget.js
+   ============================================================ */
+
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.slider-label {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 24px;
+}
+
+.slider-label-left {
+  text-align: right;
+}
+
+.slider-label-right {
+  text-align: left;
+}
+
+.slider-track {
+  flex: 1;
+  height: 4px;
+  background: var(--color-border-tertiary);
+  border-radius: 2px;
+  position: relative;
+  cursor: pointer;
+}
+
+.slider-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: 2px;
+  pointer-events: none;
+  transition: width 0.05s linear;
+}
+
+.slider-thumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-white);
+  border: 2px solid var(--color-accent);
+  cursor: grab;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  z-index: 2;
+}
+
+.slider-thumb.active {
+  cursor: grabbing;
+  border-color: var(--color-accent-hover);
+  box-shadow: 0 0 0 3px var(--color-accent-shadow-active);
+}
+
+.slider-value {
+  font-size: 11px;
+  color: var(--color-text-primary);
+  font-weight: 500;
+  min-width: 30px;
+  text-align: right;
+  flex-shrink: 0;
+}

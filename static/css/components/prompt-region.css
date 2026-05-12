@@ -1,0 +1,51 @@
+/* ============================================================
+   ITCSS Layer 6: Components — Prompt & Region Box
+   Used by ConfigPanel.js, TextWidget.js
+   ============================================================ */
+
+.prompt-box {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 12px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  resize: none;
+  line-height: 1.5;
+  font-family: var(--font-sans);
+  outline: none;
+}
+
+.prompt-box:focus {
+  border-color: var(--color-border-primary);
+}
+
+.region-block {
+  background: var(--color-background-secondary);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-md);
+  padding: 8px 10px;
+  margin-top: 8px;
+}
+
+.region-tag {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--color-accent);
+  margin-bottom: 5px;
+}
+
+.region-box {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 12px;
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: 6px;
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  resize: none;
+  line-height: 1.5;
+  font-family: var(--font-sans);
+  outline: none;
+}
