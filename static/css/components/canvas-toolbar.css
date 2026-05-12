@@ -1,0 +1,43 @@
+/* ============================================================
+   ITCSS Layer 6: Components — Canvas Toolbar
+   Used by Canvas.js
+   ============================================================ */
+
+.canvas-toolbar {
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-top: 0.5px solid var(--color-border-tertiary);
+  flex-shrink: 0;
+}
+
+.tool-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  background: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-sans);
+}
+
+.tool-btn:hover {
+  background: var(--color-background-secondary);
+}
+
+.tool-btn.active {
+  background: var(--color-accent-bg);
+  border-color: var(--color-accent-border);
+  color: var(--color-accent-hover);
+}
+/* 选择按钮置灰（WASM 被禁用时） */
+.tool-btn:disabled {
+  opacity: 0.40;
+  cursor: not-allowed;
+  filter: grayscale(100%);
+}

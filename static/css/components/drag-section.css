@@ -1,0 +1,138 @@
+/* ============================================================
+   ITCSS Layer 6: Components — Drag Section
+   Used by ConfigPanel.js, DragManager.js
+   ============================================================ */
+
+.drag-section {
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-md);
+  margin: 8px 8px 0;
+  background: var(--color-background-primary);
+  overflow: hidden;
+  transition: opacity 0.2s;
+}
+
+.drag-section:last-child {
+  margin-bottom: 8px;
+}
+
+.drag-section--dragging {
+  opacity: 0.45;
+}
+
+.drag-section--dragover {
+  border-color: var(--color-accent-ring);
+  background: var(--color-accent-bg);
+}
+
+.drag-section--flagged {
+  filter: grayscale(0.6);
+  opacity: 0.65;
+}
+
+.drag-section--flagged .drag-body {
+  display: none;
+}
+
+.drag-section--flagged .drag-header {
+  cursor: default;
+}
+
+.drag-section--flagged .drag-handle {
+  opacity: 0.1;
+}
+
+.drag-header {
+  padding: 9px 10px 9px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: grab;
+  user-select: none;
+  background: var(--color-background-secondary);
+  border-bottom: 0.5px solid var(--color-border-tertiary);
+}
+
+.drag-header:active {
+  cursor: grabbing;
+}
+
+.drag-handle {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+  opacity: 0.35;
+}
+
+.drag-handle span {
+  display: block;
+  width: 14px;
+  height: 1.5px;
+  background: var(--color-text-secondary);
+  border-radius: 1px;
+}
+
+.drag-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  flex: 1;
+}
+
+.drag-body {
+  padding: 10px 10px 12px;
+}
+
+/* Flag button */
+.flag-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-tertiary);
+  padding: 0;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+
+.flag-btn:hover {
+  background: var(--color-background-primary);
+  color: var(--color-text-secondary);
+}
+
+.flag-btn--done {
+  color: var(--color-success);
+}
+
+.section-flag-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-tertiary);
+  padding: 0;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+
+.section-flag-btn:hover {
+  background: var(--color-background-primary);
+  color: var(--color-text-secondary);
+}
+
+.section-flag-btn--done {
+  color: var(--color-success);
+}

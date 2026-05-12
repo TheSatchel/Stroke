@@ -1,0 +1,56 @@
+/* ============================================================
+   ITCSS Layer 6: Components — Toast Notifications
+   Used by Toast.js
+   ============================================================ */
+
+.toast-container {
+  position: fixed;
+  bottom: 1rem;
+  left: 1rem;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  pointer-events: none;
+  max-width: min(420px, calc(100vw - 2rem));
+}
+
+.toast-item {
+  pointer-events: auto;
+  border-radius: var(--border-radius-md);
+  padding: 10px 14px;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  line-height: 1.45;
+  cursor: pointer;
+  user-select: none;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.28s ease, transform 0.28s ease;
+  word-break: break-word;
+}
+
+.toast-item--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast-item--error {
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+  border: 1px solid var(--color-error-border);
+  box-shadow: 0 4px 18px var(--color-error-shadow);
+}
+
+.toast-item--warning {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+  border: 1px solid var(--color-warning-border);
+  box-shadow: 0 4px 18px var(--color-warning-shadow);
+}
+.toast-item--success {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+  box-shadow: 0 4px 18px rgba(16, 185, 129, 0.18);
+}

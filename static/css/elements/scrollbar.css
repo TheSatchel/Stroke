@@ -1,0 +1,35 @@
+/* ============================================================
+   ITCSS Layer 4: Elements — Scrollbar styling
+   Shared scrollbar appearance for scrollable areas.
+   ============================================================ */
+
+.history-list::-webkit-scrollbar,
+.right-body::-webkit-scrollbar {
+  width: 5px;
+}
+
+.history-list::-webkit-scrollbar-track,
+.right-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.history-list::-webkit-scrollbar-thumb,
+.right-body::-webkit-scrollbar-thumb {
+  background: var(--color-border-tertiary);
+  border-radius: 10px;
+}
+
+.history-list::-webkit-scrollbar-thumb:hover,
+.right-body::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-secondary);
+}
+
+/* Version number horizontal scrollbar */
+.ver-num-scroll::-webkit-scrollbar {
+  height: 3px;
+}
+
+.ver-num-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-border-tertiary);
+  border-radius: 10px;
+}

@@ -1,0 +1,27 @@
+/* ============================================================
+   ITCSS Layer 4: Elements — Naked HTML tags
+   Styles for elements without classes.
+   ============================================================ */
+
+body {
+  height: 100%;
+  display: flex;
+  place-items: center;
+  justify-content: center;
+  background: var(--color-background-tertiary);
+  font-family: var(--font-sans);
+}
+
+#app {
+  width: 100%;
+  height: 100vh;
+}
+
+input[type="range"] {
+  flex: 1;
+  height: 3px;
+}
+
+input[type="color"].sm-color {
+  accent-color: var(--color-accent);
+}

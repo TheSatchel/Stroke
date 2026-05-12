@@ -1,0 +1,56 @@
+/* ============================================================
+   ITCSS Layer 6: Components — Widget Base (text, choice, describe)
+   Used by TextWidget.js, ChoiceWidget.js, etc.
+   ============================================================ */
+
+.widget-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.widget-describe {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.widget-text {
+  width: 100%;
+  padding: 7px 9px;
+  font-size: 12px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  outline: none;
+  line-height: 1.5;
+}
+
+.widget-text:focus {
+  border-color: var(--color-border-primary);
+}
+
+.widget-textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.widget-choice {
+  width: 100%;
+  font-size: 12px;
+  padding: 6px 8px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  outline: none;
+  cursor: pointer;
+}
+
+.widget-choice:focus {
+  border-color: var(--color-border-primary);
+}

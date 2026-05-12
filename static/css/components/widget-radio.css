@@ -1,0 +1,29 @@
+/* ============================================================
+   ITCSS Layer 6: Components — Widget Radio
+   Used by ChoiceWidget.js (displayAs=radio)
+   ============================================================ */
+
+.widget-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.radio-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.radio-item input[type="radio"] {
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.radio-label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}

@@ -1,0 +1,213 @@
+/* ============================================================
+   ITCSS Layer 6: Components — Generate Call Widget
+   Used by GenerateCallWidget.js, ConfigSelector.js, ResultPreview.js
+   ============================================================ */
+
+.generate-call-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 4px;
+}
+
+.generate-call-line {
+  flex: 1;
+  height: 0.5px;
+  background: var(--color-border-tertiary);
+}
+
+.generate-call-summary {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  padding: 4px 8px;
+  background: var(--color-background-secondary);
+  border-radius: 6px;
+  line-height: 1.4;
+  max-height: 48px;
+  overflow: hidden;
+}
+
+.generate-call-result-preview {
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  overflow: hidden;
+  background: var(--color-background-secondary);
+  margin-top: 4px;
+}
+
+.generate-call-result-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  max-height: 180px;
+  object-fit: contain;
+  background: var(--color-background-tertiary);
+}
+
+.generate-call-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  border-top: 0.5px solid var(--color-border-tertiary);
+}
+
+.generate-call-status {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  font-weight: 500;
+}
+
+.generate-call-status--generating {
+  color: var(--color-accent);
+  animation: pulse-text 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse-text {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.generate-call-result-remove {
+  background: none;
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: 4px;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 1px 6px;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s;
+}
+
+.generate-call-result-remove:hover {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+/* Config selector row */
+.generate-call-config-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.generate-call-config-label {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  flex-shrink: 0;
+  min-width: 28px;
+}
+
+.generate-call-config-select {
+  flex: 1;
+  font-size: 11px;
+  padding: 4px 6px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 6px;
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  outline: none;
+}
+
+.generate-call-config-select:focus {
+  border-color: var(--color-border-primary);
+}
+
+/* Dynamic params (per-call tweaks) */
+.generate-call-dynamic-wrap {
+  margin-top: 4px;
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: var(--color-background-secondary);
+}
+
+.generate-call-dynamic-summary {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+}
+
+.generate-call-dynamic-summary:hover {
+  color: var(--color-text-secondary);
+}
+
+.generate-call-dynamic-inner {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.generate-call-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 2px;
+}
+
+.generate-call-label {
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.generate-call-param-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 28px;
+}
+
+.generate-call-param-label {
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  flex: 3;
+  min-width: 0;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.generate-call-param-widget {
+  flex: 7;
+  min-width: 0;
+}
+
+.generate-call-param-widget .widget-text,
+.generate-call-param-widget .widget-choice,
+.generate-call-param-widget select.ps {
+  padding: 2px 6px;
+  font-size: 11px;
+  height: 24px;
+}
+
+.generate-call-param-widget .slider-row {
+  gap: 4px;
+}
+
+.generate-call-param-widget .slider-track {
+  height: 3px;
+}
+
+.generate-call-param-widget .slider-thumb {
+  width: 12px;
+  height: 12px;
+}
+
+.generate-call-param-widget .slider-label {
+  font-size: 9px;
+}
+
+.generate-call-param-widget .slider-value {
+  font-size: 10px;
+  min-width: 22px;
+}

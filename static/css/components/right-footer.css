@@ -1,0 +1,44 @@
+/* ============================================================
+   ITCSS Layer 6: Components — Right Footer
+   Used by ConfigPanel.js
+   ============================================================ */
+
+.right-body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.right-footer {
+  flex-shrink: 0;
+  padding: 10px 12px 12px;
+  border-top: 0.5px solid var(--color-border-tertiary);
+}
+
+.divider {
+  height: 0.5px;
+  background: var(--color-border-tertiary);
+  margin: 10px 0 12px;
+}
+
+.setting-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.setting-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--border-radius-md);
+  border: 0.5px solid var(--color-border-secondary);
+  background: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+}
+
+.setting-btn:hover {
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+}

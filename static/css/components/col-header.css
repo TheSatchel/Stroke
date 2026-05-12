@@ -1,0 +1,40 @@
+/* ============================================================
+   ITCSS Layer 6: Components — Column Header
+   Used by HistoryPanel.js (left) and ConfigPanel.js (right).
+   ============================================================ */
+
+.col-header {
+  padding: 12px 14px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-bottom: 0.5px solid var(--color-border-tertiary);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.hist-new-project-btn,
+.add-tab-btn {
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  background: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: background 0.15s, color 0.15s;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.hist-new-project-btn:hover,
+.add-tab-btn:hover {
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+}
