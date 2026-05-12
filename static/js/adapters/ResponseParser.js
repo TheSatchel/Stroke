@@ -8,7 +8,7 @@
  * 替代已废弃的 btoa(unescape(encodeURIComponent()))。
  */
 
-import { showToast, showWarningToast } from '../components/Toast.js';
+import { showToast, showWarningToast } from '../utils/Toast.js';
 
 /**
  * 检测并提取 markdown 代码块中的内容

@@ -8,12 +8,13 @@
 用户界面 (ConfigPanel / GenerateCallWidget)
         │
         ▼
-  GeneratorService (adapter.js)          ← 注册中心，切换 adapter
+  GeneratorService (Adapter.js)          ← 注册中心，切换 adapter
         │
         ▼
   BaseAdapters  (抽象基类)               ← 定义 generate() 契约
         │
-        ├── XianyuAdapter  (咸鱼 API)
+        ├── XianyuGeminiAdapter  (咸鱼 Gemini)
+        ├── XianyuGPTAdapter     (咸鱼 GPT Image)
         ├── (未来: OpenAIAdapter)
         └── (未来: ReplicateAdapter)
         │
@@ -190,13 +191,16 @@ export class MyAdapter extends BaseAdapters {
 ### 注册到系统
 
 ```js
-// static/js/adapter.js
+// static/js/Adapter.js
 
 import { MyAdapter } from './adapters/MyAdapter.js';
 
 const BUILTIN = [
-  MyAdapter,     // ← 新增
-  XianyuAdapter,
+  MyAdapter,                // ← 新增
+  GPTChatAdapter,
+  GPTImageAdapter,
+  XianyuGeminiAdapter,
+  XianyuGPTAdapter,
 ];
 ```
 
