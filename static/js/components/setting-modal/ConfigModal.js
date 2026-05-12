@@ -4,13 +4,13 @@
  * 由 SettingsModal 中的「管理配置」按钮打开。
  * 管理所有模型配置：adapter 选择、动态参数、模型 ID 等。
  *
- * 一份配置数据结构：
- *   { id, name, adapter, apiKey, endpoint, model, fallbackModel, params: {...} }
+ * 拆分后：模型选择委托给 ModelSelectorModal，动态参数渲染委托给 DynamicParamsRenderer。
  */
 
-import { el } from './utils.js';
-import { loadConfigs, saveConfigs } from '../storage.js';
-import { widgetRegistry } from './ConfigTabs.js';
+import { el } from '../../utils/DOM.js';
+import { loadConfigs, saveConfigs } from '../../locals/storage.js';
+import { renderDynamicParams } from '../DynamicParamsRenderer.js';
+import ModelSelectorModal from './ModelSelectorModal.js';
 
 export default class ConfigModal {
   constructor(generator) {
@@ -130,12 +130,12 @@ export default class ConfigModal {
     modelRow.appendChild(el('button', 'sm-btn-sec', {
       text: '选择模型',
       style: 'white-space:nowrap',
-      onclick: () => self._createModelSubModal()
+      onclick: () => self._openModelSelector()
     }));
     fModel.appendChild(modelRow);
     body.appendChild(fModel);
 
-    // --- 动态参数区 ---
+    // --- 动态参数区 （用共享渲染器）---
     this.dynamicParamsContainer = el('div', 'sm-dynamic-params', { style: 'display:none' });
     body.appendChild(this.dynamicParamsContainer);
 
@@ -163,13 +163,11 @@ export default class ConfigModal {
   open() {
     this.overlay.classList.remove('hidden');
     this._refreshConfigSelect();
-    // 如果已有配置，加载第一个；否则新建
     const configs = loadConfigs();
     if (configs.length > 0 && !this._editingId) {
       this._loadConfig(configs[0]);
       this.configSelect.value = configs[0].id;
     } else if (configs.length === 0) {
-      // 无已有配置时，显式初始化表单（填充默认端点、模型等）
       this._resetForm();
     }
   }
@@ -199,15 +197,12 @@ export default class ConfigModal {
       if (providers[i].id === v) { allModels = providers[i].models || []; break; }
     }
 
-    // 更新当前模型默认值（仅当为空时才自动选择；保留用户自定义模型名）
     if (allModels.length > 0) {
       const defaultModel = Cls ? Cls.defaultModel : allModels[0].id;
       if (!this._currentModel) {
         this._currentModel = defaultModel;
       }
-      // 不再清除不在列表中的 fallbackModel，因为它可能是用户自定义名称
     } else {
-      // 无模型列表时，不清空已有值，允许用户继续使用自定义名称
       if (!this._currentModel) {
         this._currentModel = '';
       }
@@ -217,179 +212,31 @@ export default class ConfigModal {
     }
     this._updateModelHint();
 
-    // 动态参数区
+    // 动态参数区 — 用共享渲染器
     this._renderDynamicParams(Cls);
   }
 
   // ================================================================
-  //  模型 SubModal
+  //  模型选择
   // ================================================================
-  _createModelSubModal() {
-    const existing = document.getElementById('configModelSubOverlay');
-    if (existing) existing.remove();
-
-    const self = this;
-    const overlay = el('div', 'overlay', { id: 'configModelSubOverlay', style: 'z-index:1003' });
-    overlay.classList.remove('hidden');
-
-    const modal = el('div', 'settings-modal', { style: 'max-width:420px' });
-    modal.addEventListener('click', e => e.stopPropagation());
-
-    // header
-    const hdr = el('div', 'sm-header');
-    hdr.appendChild(el('span', 'sm-title', { text: '选择模型' }));
-    hdr.appendChild(el('button', 'sm-close', { text: '×', onclick: () => overlay.remove() }));
-    modal.appendChild(hdr);
-
-    const body = el('div', 'sm-body');
-
-    // 获取当前 provider 的模型
-    const provId = self.provSelect ? self.provSelect.value : '';
-    const providers = self.generator ? self.generator.getProviders() : [];
+  _openModelSelector() {
+    const provId = this.provSelect ? this.provSelect.value : '';
+    const providers = this.generator ? this.generator.getProviders() : [];
     let allModels = [];
     for (let i = 0; i < providers.length; i++) {
       if (providers[i].id === provId) { allModels = providers[i].models || []; break; }
     }
 
-    // ---------- 主模型 ----------
-    const fMain = el('div', 'sm-field');
-
-    // 标签
-    fMain.appendChild(el('div', 'sm-label', { text: '主模型' }));
-
-    // radio 组
-    const isMainPredefined = allModels.length > 0 && allModels.some(m => m.id === self._currentModel);
-    const radioPredefined = el('input', '', { type: 'radio', name: 'mainModelType', value: 'predefined' });
-    radioPredefined.checked = isMainPredefined;
-    const radioCustom = el('input', '', { type: 'radio', name: 'mainModelType', value: 'custom' });
-    radioCustom.checked = !isMainPredefined;
-
-    const radioContainer = el('div', 'sm-radio-group');
-    const labelPre = el('label', 'sm-radio-item');
-    labelPre.appendChild(radioPredefined);
-    labelPre.appendChild(el('span', '', { text: '从列表选择' }));
-    const labelCus = el('label', 'sm-radio-item');
-    labelCus.appendChild(radioCustom);
-    labelCus.appendChild(el('span', '', { text: '自定义名称' }));
-    radioContainer.appendChild(labelPre);
-    radioContainer.appendChild(labelCus);
-    fMain.appendChild(radioContainer);
-
-    // 下拉菜单（predefined 时可见）
-    const mainDropdown = el('select', 'sm-input sm-model-select-row');
-    mainDropdown.style.display = isMainPredefined ? 'block' : 'none';
-    mainDropdown.innerHTML = allModels.length === 0
-      ? '<option value="">无可用模型</option>'
-      : allModels.map(m => {
-          const sel = (isMainPredefined && m.id === self._currentModel) ? ' selected' : '';
-          return '<option value="' + m.id + '"' + sel + '>' + m.label + '</option>';
-        }).join('');
-    fMain.appendChild(mainDropdown);
-
-    // 自定义输入（custom 时可见）
-    const mainCustomInput = el('input', 'sm-input sm-model-select-row', {
-      type: 'text',
-      placeholder: '例如: gpt-4o-2024-11-20',
-      value: !isMainPredefined && self._currentModel ? self._currentModel : ''
-    });
-    mainCustomInput.style.display = isMainPredefined ? 'none' : 'block';
-    fMain.appendChild(mainCustomInput);
-
-    // 切换逻辑
-    radioPredefined.addEventListener('change', () => {
-      mainDropdown.style.display = 'block';
-      mainCustomInput.style.display = 'none';
-    });
-    radioCustom.addEventListener('change', () => {
-      mainDropdown.style.display = 'none';
-      mainCustomInput.style.display = 'block';
-    });
-
-    body.appendChild(fMain);
-
-    // ---------- 备用模型 ----------
-    const fFb = el('div', 'sm-field');
-
-    fFb.appendChild(el('div', 'sm-label', { text: '备用模型 (Fallback)' }));
-
-    const isFallbackPredefined = allModels.length > 0 && self._currentFallbackModel &&
-      allModels.some(m => m.id === self._currentFallbackModel);
-    const fbRadioPredefined = el('input', '', { type: 'radio', name: 'fbModelType', value: 'predefined' });
-    fbRadioPredefined.checked = isFallbackPredefined || !self._currentFallbackModel;
-    const fbRadioCustom = el('input', '', { type: 'radio', name: 'fbModelType', value: 'custom' });
-    fbRadioCustom.checked = self._currentFallbackModel && !isFallbackPredefined;
-
-    const fbRadioContainer = el('div', 'sm-radio-group');
-    const fbLabelPre = el('label', 'sm-radio-item');
-    fbLabelPre.appendChild(fbRadioPredefined);
-    fbLabelPre.appendChild(el('span', '', { text: '从列表选择' }));
-    const fbLabelCus = el('label', 'sm-radio-item');
-    fbLabelCus.appendChild(fbRadioCustom);
-    fbLabelCus.appendChild(el('span', '', { text: '自定义名称' }));
-    fbRadioContainer.appendChild(fbLabelPre);
-    fbRadioContainer.appendChild(fbLabelCus);
-    fFb.appendChild(fbRadioContainer);
-
-    // 下拉菜单
-    const fbDropdown = el('select', 'sm-input sm-model-select-row');
-    fbDropdown.style.display = fbRadioPredefined.checked ? 'block' : 'none';
-    fbDropdown.innerHTML = '<option value="">无</option>' +
-      allModels.map(m => {
-        const sel = (isFallbackPredefined && m.id === self._currentFallbackModel) ? ' selected' : '';
-        return '<option value="' + m.id + '"' + sel + '>' + m.label + '</option>';
-      }).join('');
-    fFb.appendChild(fbDropdown);
-
-    // 自定义输入
-    const fbCustomInput = el('input', 'sm-input sm-model-select-row', {
-      type: 'text',
-      placeholder: '例如: gpt-3.5-turbo',
-      value: (!isFallbackPredefined && self._currentFallbackModel) ? self._currentFallbackModel : ''
-    });
-    fbCustomInput.style.display = fbRadioCustom.checked ? 'block' : 'none';
-    fFb.appendChild(fbCustomInput);
-
-    fbRadioPredefined.addEventListener('change', () => {
-      fbDropdown.style.display = 'block';
-      fbCustomInput.style.display = 'none';
-    });
-    fbRadioCustom.addEventListener('change', () => {
-      fbDropdown.style.display = 'none';
-      fbCustomInput.style.display = 'block';
-    });
-
-    fFb.appendChild(el('div', 'sm-hint', { text: '主模型出错时自动切换到备用模型重试' }));
-    body.appendChild(fFb);
-
-    // footer
-    const footer = el('div', 'sm-footer');
-    footer.appendChild(el('button', 'sm-btn-sec', { text: '取消', onclick: () => overlay.remove() }));
-    footer.appendChild(el('button', 'sm-btn-pri', {
-      text: '确定',
-      onclick: () => {
-        // 读取主模型
-        if (radioPredefined.checked) {
-          self._currentModel = mainDropdown.value;
-        } else {
-          self._currentModel = mainCustomInput.value.trim();
-        }
-        // 读取备用模型
-        if (fbRadioPredefined.checked) {
-          self._currentFallbackModel = fbDropdown.value || null;
-        } else {
-          const fbVal = fbCustomInput.value.trim();
-          self._currentFallbackModel = fbVal || null;
-        }
-        self._updateModelHint();
-        overlay.remove();
+    ModelSelectorModal.open({
+      currentModel: this._currentModel,
+      currentFallbackModel: this._currentFallbackModel,
+      allModels,
+      onConfirm: ({ model, fallbackModel }) => {
+        this._currentModel = model;
+        this._currentFallbackModel = fallbackModel;
+        this._updateModelHint();
       }
-    }));
-
-    modal.appendChild(body);
-    modal.appendChild(footer);
-    overlay.appendChild(modal);
-    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-    document.body.appendChild(overlay);
+    });
   }
 
   _updateModelHint() {
@@ -400,71 +247,21 @@ export default class ConfigModal {
   }
 
   // ================================================================
-  //  动态参数渲染
+  //  动态参数渲染（委托给共享模块）
   // ================================================================
   _renderDynamicParams(Cls) {
-    this._clearDynamicParams();
     const configParams = Cls ? (Cls.configParams || []) : [];
-    if (configParams.length === 0) {
-      this.dynamicParamsContainer.style.display = 'none';
-      return;
-    }
-    this.dynamicParamsContainer.style.display = 'block';
 
-    // 折叠标签
-    const summaryEl = el('div', 'sm-dynamic-summary', {
-      text: '▸ 动态参数',
-      style: 'cursor:pointer;font-weight:500;margin-bottom:8px;color:var(--color-text-secondary)'
+    renderDynamicParams({
+      container: this.dynamicParamsContainer,
+      configParams,
+      paramWidgets: this._paramWidgets,
+      cssPrefix: 'sm',
+      widgetIdPrefix: 'cfgparam_',
+      suffix: '',
+      summaryText: '动态参数',
+      startExpanded: false
     });
-    const paramsWrap = el('div', 'sm-dynamic-wrap');
-    summaryEl.addEventListener('click', () => {
-      const collapsed = paramsWrap.style.display === 'none';
-      paramsWrap.style.display = collapsed ? 'block' : 'none';
-      summaryEl.textContent = collapsed ? '▾ 动态参数' : '▸ 动态参数';
-    });
-    this.dynamicParamsContainer.appendChild(summaryEl);
-    this.dynamicParamsContainer.appendChild(paramsWrap);
-
-    const self = this;
-    for (const paramDef of configParams) {
-      const wrapper = el('div', 'sm-field');
-      wrapper.appendChild(el('div', 'sm-label', { text: paramDef.label || paramDef.name }));
-
-      const widgetContainer = el('div', '');
-      const WidgetClass = widgetRegistry[paramDef.type];
-      if (WidgetClass) {
-        const mockTabDef = {
-          id: 'cfgparam_' + paramDef.name,
-          title: paramDef.label || paramDef.name,
-          describe: paramDef.describe || '',
-          type: paramDef.type,
-          defaultValue: paramDef.defaultValue,
-          placeholder: paramDef.placeholder,
-          min: paramDef.min,
-          max: paramDef.max,
-          step: paramDef.step,
-          leftLabel: paramDef.leftLabel,
-          rightLabel: paramDef.rightLabel,
-          unit: paramDef.unit,
-          options: paramDef.options,
-          displayAs: paramDef.displayAs,
-          multiline: paramDef.multiline,
-          rows: paramDef.rows,
-          maxLength: paramDef.maxLength
-        };
-        const widget = new WidgetClass(widgetContainer, mockTabDef);
-        self._paramWidgets.set(paramDef.name, widget);
-      } else {
-        widgetContainer.appendChild(el('span', '', { text: '未知类型: ' + paramDef.type }));
-      }
-      wrapper.appendChild(widgetContainer);
-      paramsWrap.appendChild(wrapper);
-    }
-  }
-
-  _clearDynamicParams() {
-    this._paramWidgets.clear();
-    if (this.dynamicParamsContainer) this.dynamicParamsContainer.innerHTML = '';
   }
 
   // ================================================================
@@ -478,10 +275,10 @@ export default class ConfigModal {
     this._currentModel = '';
     this._currentFallbackModel = null;
     this._updateModelHint();
-    this._clearDynamicParams();
+    this._paramWidgets.clear();
+    this.dynamicParamsContainer.innerHTML = '';
     this.dynamicParamsContainer.style.display = 'none';
     if (this.provSelect) this.provSelect.selectedIndex = 0;
-    // 触发一次 provChange 填充默认端点
     this._provChange();
   }
 
@@ -494,7 +291,6 @@ export default class ConfigModal {
     this._currentModel = cfg.model || '';
     this._currentFallbackModel = cfg.fallbackModel || null;
     this._updateModelHint();
-    // 触发动态参数渲染，然后恢复值
     this._provChange();
     const self = this;
     setTimeout(() => {
@@ -511,7 +307,6 @@ export default class ConfigModal {
   _saveCurrentConfig() {
     const name = (this.nameInput ? this.nameInput.value.trim() : '') || '未命名配置';
 
-    // 收集动态参数值
     const params = {};
     for (const [name, widget] of this._paramWidgets) {
       params[name] = widget.getValue();
@@ -554,7 +349,7 @@ export default class ConfigModal {
   }
 
   // ================================================================
-  //  对外获取值（给 SettingsModal / uis 统一读取）
+  //  对外获取值
   // ================================================================
   getActiveConfig() {
     const val = this.configSelect ? this.configSelect.value : '';
