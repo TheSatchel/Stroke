@@ -85,6 +85,10 @@ class Settings:
     def PWA_ICONS(self) -> list[dict]:
         return self._data.get("pwa", {}).get("icons", [])
 
+    @property
+    def PWA_SCREENSHOTS(self) -> list[dict]:
+        return self._data.get("pwa", {}).get("screenshots", [])
+
     # pages
     @property
     def PAGES(self) -> dict:

@@ -35,6 +35,14 @@ pwa:
       sizes: "512x512"
       type: "image/png"
       purpose: "maskable"
+  screenshots:
+    - src: "/static/img/screenshot-wide.png"
+      sizes: "2558x1351"
+      type: "image/png"
+      form_factor: "wide"
+    - src: "/static/img/screenshot-mobile.png"
+      sizes: "2558x1351"
+      type: "image/png"
 
 # 路由页面配置
 pages:
