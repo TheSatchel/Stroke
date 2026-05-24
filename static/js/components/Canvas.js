@@ -363,17 +363,11 @@ export default class Canvas {
   // ================================================================
   _confirmSelection() {
     if (!this._selectionData) return;
+    const data = { ...this._selectionData };
+    this._clearActiveSelection();
     this._hideConfirmBar();
-    if (this.tool === 'las') {
-      this._svgOverlay.setLassoStrokeDash('none');
-    }
-    // 分段预览确认后去掉虚线
-    if (this._segOverlay) {
-      const poly = this._segOverlay.querySelector('polygon');
-      if (poly) poly.setAttribute('stroke-dasharray', '');
-    }
     if (this.onSelectionConfirm) {
-      this.onSelectionConfirm({ ...this._selectionData });
+      this.onSelectionConfirm(data);
     }
   }
 
