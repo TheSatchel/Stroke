@@ -34,6 +34,7 @@ export default class Canvas {
     this._segService = SegmentationService.instance;
     this._segOverlay = null;
     this._segmentationInProgress = false;
+    this._segCancelToken = 0;
 
     // WASM 被禁用时弹 Toast（仅首次）
     if (this._segService.state === 'WASM_DISABLED' && !this._segService._wasmDisabledToastShown) {
@@ -133,10 +134,10 @@ export default class Canvas {
     return m;
   }
 
-  _showSelMarker(x, y) {
+  _showSelMarker(x, y, rect) {
     this._selMarker.style.display = 'block';
-    this._selMarker.style.left = x + 'px';
-    this._selMarker.style.top = y + 'px';
+    this._selMarker.style.left = (x / rect.width * 100) + '%';
+    this._selMarker.style.top = (y / rect.height * 100) + '%';
   }
   _hideSelMarker() { this._selMarker.style.display = 'none'; }
 
@@ -186,7 +187,11 @@ export default class Canvas {
       return;
     }
 
+    // 先显示点击位置标记
+    this._showSelMarker(clientX, clientY, rect);
+
     this._segmentationInProgress = true;
+    const token = ++this._segCancelToken;
 
     const natW = imgEl.naturalWidth;
     const natH = imgEl.naturalHeight;
@@ -206,8 +211,10 @@ export default class Canvas {
     try {
       const result = await this._segService.segmentAtPoint(imgDataUrl, cx, cy);
       dismissToast(progressToast);
+      if (token !== this._segCancelToken) return;
 
       if (result) {
+        this._hideSelMarker();
         const displayPoints = result.maskPoints.map(p => ({
           x: p.x / result.maskWidth * renderedW + padLeft,
           y: p.y / result.maskHeight * renderedH + padTop,
@@ -229,11 +236,14 @@ export default class Canvas {
         showToast('⚠️ AI 未识别到区域，请尝试点击其他位置', 'warning', 4000);
       }
     } catch (err) {
+      if (token !== this._segCancelToken) return;
       dismissToast(progressToast);
       console.error('[Canvas] 分割推理失败:', err);
       showToast('⚠️ AI 分割失败: ' + (err.message || '未知错误'), 'error', 5000);
     } finally {
-      this._segmentationInProgress = false;
+      if (token === this._segCancelToken) {
+        this._segmentationInProgress = false;
+      }
     }
   }
 
@@ -247,7 +257,7 @@ export default class Canvas {
       naturalWidth: imgEl?.naturalWidth || rect.width,
       naturalHeight: imgEl?.naturalHeight || rect.height,
     };
-    this._showSelMarker(clientX, clientY);
+    this._showSelMarker(clientX, clientY, rect);
     this._showConfirmBar();
   }
 
@@ -435,6 +445,7 @@ export default class Canvas {
     this._svgOverlay.hideLassoClose();
     this._svgOverlay.setLassoStrokeDash('4 3');
     this._svgOverlay.updateLassoPath([]);
+    ++this._segCancelToken;
     if (this._segOverlay) this._segOverlay.innerHTML = '';
   }
 

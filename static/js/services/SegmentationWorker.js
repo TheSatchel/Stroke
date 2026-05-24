@@ -70,21 +70,7 @@ function maskToContour(mask, seedX, seedY) {
   const pixelCount = queue.length;
   if (pixelCount === 0) return [];
 
-  // 连通分量太大（≥ 25% 图像）→ 退回固定大小 bounding box
-  const areaRatio = pixelCount / (width * height);
-  if (areaRatio >= 0.25) {
-    const margin = 32;
-    const rminX = Math.max(0, seedX - margin);
-    const rminY = Math.max(0, seedY - margin);
-    const rmaxX = Math.min(width - 1, seedX + margin);
-    const rmaxY = Math.min(height - 1, seedY + margin);
-    return [
-      { x: rminX, y: rminY }, { x: rmaxX, y: rminY },
-      { x: rmaxX, y: rmaxY }, { x: rminX, y: rmaxY },
-    ];
-  }
-
-  // 正常大小 → 径向扫描连通分量轮廓
+  // 径向扫描连通分量轮廓
   const cx = (minX + maxX) / 2;
   const cy = (minY + maxY) / 2;
   const numSteps = 72;
