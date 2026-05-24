@@ -17,6 +17,7 @@ export default class SvgOverlay {
   constructor(svgParent) {
     this.svgParent = svgParent;
     this.svg = this._createSvg();
+    this._selections = {};
   }
 
   // ================================================================
@@ -87,31 +88,70 @@ export default class SvgOverlay {
   }
 
   // ================================================================
+  //  坐标映射 — 处理 object-fit: contain 的 letterbox
+  // ================================================================
+  _computeRenderArea(natW, natH, containerW, containerH) {
+    const imgRatio = natW / natH;
+    const containerRatio = containerW / containerH;
+    if (imgRatio > containerRatio) {
+      const renderedW = containerW;
+      const renderedH = containerW / imgRatio;
+      return { renderedW, renderedH, padLeft: 0, padTop: (containerH - renderedH) / 2 };
+    }
+    const renderedH = containerH;
+    const renderedW = containerH * imgRatio;
+    return { renderedW, renderedH, padLeft: (containerW - renderedW) / 2, padTop: 0 };
+  }
+
+  _toDisplayCoords(rawX, rawY, origArea, currArea) {
+    const imgRelX = (rawX - origArea.padLeft) / (origArea.renderedW || 1);
+    const imgRelY = (rawY - origArea.padTop) / (origArea.renderedH || 1);
+    return {
+      x: imgRelX * currArea.renderedW + currArea.padLeft,
+      y: imgRelY * currArea.renderedH + currArea.padTop,
+    };
+  }
+
+  // ================================================================
   //  持久化选区
   // ================================================================
   addConfirmedSelection(label, data) {
+    this._selections[label] = data;
+    this._renderSelection(label, data);
+  }
+
+  _renderSelection(label, data) {
     this._removeConfirmedElements(label);
 
     const g = document.createElementNS(SVG_NS, 'g');
     g.setAttribute('data-label', label);
 
+    const natW = data.naturalWidth || data.canvasWidth || 1;
+    const natH = data.naturalHeight || data.canvasHeight || 1;
+    const origArea = this._computeRenderArea(natW, natH, data.canvasWidth || 1, data.canvasHeight || 1);
+    const currArea = this._computeRenderArea(natW, natH, this.svgParent.clientWidth, this.svgParent.clientHeight);
+    const s = Math.min(currArea.renderedW / (origArea.renderedW || 1), currArea.renderedH / (origArea.renderedH || 1));
+
     if (data.type === 'point') {
-      const cx = data.x ?? data.points?.[0]?.x ?? 0;
-      const cy = data.y ?? data.points?.[0]?.y ?? 0;
+      const rawX = data.x ?? data.points?.[0]?.x ?? 0;
+      const rawY = data.y ?? data.points?.[0]?.y ?? 0;
+      const dc = this._toDisplayCoords(rawX, rawY, origArea, currArea);
+      const r = Math.max(15 * s, 8);
       const circle = document.createElementNS(SVG_NS, 'circle');
-      circle.setAttribute('cx', cx);
-      circle.setAttribute('cy', cy);
-      circle.setAttribute('r', '15');
+      circle.setAttribute('cx', dc.x);
+      circle.setAttribute('cy', dc.y);
+      circle.setAttribute('r', r);
       circle.setAttribute('fill', data.color);
       circle.setAttribute('fill-opacity', '0.35');
       circle.setAttribute('stroke', data.color);
       circle.setAttribute('stroke-width', '1.5');
       g.appendChild(circle);
-      g.appendChild(this._makeLabelElement(cx - 15, cy - 15 - 6, label));
+      g.appendChild(this._makeLabelElement(dc.x - r, dc.y - r - 6, label));
     } else if ((data.type === 'lasso' || data.type === 'segmentation') && data.points && data.points.length >= 3) {
-      let d = 'M ' + data.points[0].x + ' ' + data.points[0].y;
-      for (let i = 1; i < data.points.length; i++) {
-        d += ' L ' + data.points[i].x + ' ' + data.points[i].y;
+      const scaled = data.points.map(p => this._toDisplayCoords(p.x, p.y, origArea, currArea));
+      let d = 'M ' + scaled[0].x + ' ' + scaled[0].y;
+      for (let i = 1; i < scaled.length; i++) {
+        d += ' L ' + scaled[i].x + ' ' + scaled[i].y;
       }
       d += ' Z';
       const path = document.createElementNS(SVG_NS, 'path');
@@ -123,7 +163,7 @@ export default class SvgOverlay {
       g.appendChild(path);
 
       let minX = Infinity, minY = Infinity;
-      for (const p of data.points) {
+      for (const p of scaled) {
         if (p.x < minX) minX = p.x;
         if (p.y < minY) minY = p.y;
       }
@@ -133,17 +173,26 @@ export default class SvgOverlay {
     this._confirmedGroup.appendChild(g);
   }
 
+  refreshAllSelections() {
+    this._confirmedGroup.innerHTML = '';
+    for (const [label, data] of Object.entries(this._selections)) {
+      this._renderSelection(label, data);
+    }
+  }
+
   removeConfirmedSelection(label) {
     this._removeConfirmedElements(label);
+    delete this._selections[label];
+  }
+
+  clearAllSelections() {
+    this._confirmedGroup.innerHTML = '';
+    this._selections = {};
   }
 
   _removeConfirmedElements(label) {
     const els = this._confirmedGroup.querySelectorAll('[data-label="' + label + '"]');
     els.forEach(el => el.remove());
-  }
-
-  clearAllSelections() {
-    this._confirmedGroup.innerHTML = '';
   }
 
   // ================================================================

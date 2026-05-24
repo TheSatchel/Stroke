@@ -4,7 +4,7 @@
  * 适用于任何兼容 OpenAI /v1/chat/completions 的 API。
  * 支持 bad_response_status_code 时自动 fallback 到备用模型。
  *
- * 子类（如 XianyuGeminiAdapter）只需覆盖：
+ * 子类（如 XianyuGPTChatAdapter）只需覆盖：
  *   static id, label, defaultEndpoint, models, configParams
  */
 
@@ -59,6 +59,14 @@ export class GPTChatAdapter extends BaseAdapters {
         type: 'text',
         defaultValue: '4096',
         placeholder: '最大输出 token 数'
+      },
+      {
+        name: 'mask_mode',
+        label: '蒙版模式',
+        type: 'choice',
+        options: ['transparent', 'white_bg', 'overlay'],
+        defaultValue: 'transparent',
+        displayAs: 'dropdown'
       }
     ];
   }
@@ -89,11 +97,14 @@ export class GPTChatAdapter extends BaseAdapters {
 
     const messages = [];
     const contentParts = [{ type: 'text', text: prompt }];
+
+    // ★ 所有原图（image widget / canvas_ref_image / region 原图）
     for (const b64 of (imageBase64List || [])) {
       if (b64) {
         contentParts.push({ type: 'image_url', image_url: { url: b64 } });
       }
     }
+
     messages.push({ role: 'user', content: contentParts });
 
     return this._callWithFallback({
@@ -215,6 +226,15 @@ export class GPTChatAdapter extends BaseAdapters {
             throw new Error('API 返回的不是有效 SVG');
           }
           console.log(`[${adapterId}] 生成结果类型: SVG`);
+        } else if (imageResult.type === 'url') {
+          // 图片 URL → 下载转为 data URL
+          console.log(`[${adapterId}] 生成结果类型: URL (${imageResult.url})`);
+          const dataUrl = await this._downloadImageUrl(imageResult.url);
+          if (!this._isValidRasterDataUrl(dataUrl)) {
+            showToast(`${label} 下载的图片 data URL 无效`, 'error');
+            throw new Error('下载的图片格式无效');
+          }
+          return { type: 'raster', dataUrl };
         } else {
           if (!this._isValidRasterDataUrl(imageResult.dataUrl)) {
             showToast(`${label} 光栅图 data URL 无效`, 'error');
@@ -253,5 +273,33 @@ export class GPTChatAdapter extends BaseAdapters {
     } finally {
       clearTimeout(timeoutId);
     }
+  }
+
+  // ================================================================
+  //  _downloadImageUrl — 下载普通图片 URL 并转为 data URL
+  // ================================================================
+
+  async _downloadImageUrl(url) {
+    const imgResp = await fetch(url);
+    if (!imgResp.ok) {
+      throw new Error('下载图片失败，状态码: ' + imgResp.status);
+    }
+    const blob = await imgResp.blob();
+    const mime = blob.type || 'image/png';
+    const b64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result;
+        if (typeof result === 'string') {
+          const arr = result.split(',');
+          resolve(arr.length > 1 ? arr[1] : arr[0]);
+        } else {
+          reject(new Error('FileReader 未返回字符串'));
+        }
+      };
+      reader.onerror = () => reject(new Error('FileReader 读取失败'));
+      reader.readAsDataURL(blob);
+    });
+    return 'data:' + mime + ';base64,' + b64;
   }
 }

@@ -3,7 +3,7 @@
  * 将 _doGenerate 从 App 解耦，按 segment 逐段调用生成器。
  */
 
-import { computeContentFingerprint } from './segmentparser.js';
+import { computeContentFingerprint } from '../services/segmentparser.js';
 import { showToast } from '../utils/Toast.js';
 import GenerationPipeline from './GenerationPipeline.js';
 
@@ -86,23 +86,21 @@ export async function performGeneration(app) {
     }
   });
 
-  // 启动管线
-  pipeline.start(tabsConfig, tabValues, callWidgetConfigs);
+  // 启动管线并等待完成
+  await pipeline.start(tabsConfig, tabValues, callWidgetConfigs);
 
-  // 轮询等待管线完成，然后保存 lineage
-  _waitForPipelineAndSave(pipeline, app, lineageManager, tabValues, tabsConfig);
-}
+  // 管线完成后保存 lineage
+  try {
+    await _onPipelineComplete(pipeline, app, lineageManager, tabValues, tabsConfig);
+  } catch (err) {
+    console.error('[Generator] lineage 保存失败:', err);
+    showToast('保存生成结果失败', 'error', 5000);
+  }
 
-/**
- * 轮询等待管线完成并创建/更新 lineage
- */
-function _waitForPipelineAndSave(pipeline, app, lineageManager, tabValues, tabsConfig) {
-  const checkInterval = setInterval(() => {
-    if (!pipeline.running) {
-      clearInterval(checkInterval);
-      _onPipelineComplete(pipeline, app, lineageManager, tabValues, tabsConfig);
-    }
-  }, 200);
+  // 设置下载源为当前 lineage 版本
+  if (app.currentLineageId) {
+    app.config.setDownloadLineage(app.currentLineageId, app.currentVersionIndex);
+  }
 }
 
 /**
@@ -116,6 +114,7 @@ async function _onPipelineComplete(pipeline, app, lineageManager, tabValues, tab
 
   if (results.length === 0) {
     console.warn('[Generator] 没有成功的段结果');
+    app.config.onGenComplete();
     return;
   }
 
@@ -124,7 +123,7 @@ async function _onPipelineComplete(pipeline, app, lineageManager, tabValues, tab
   const timeStr = now.getHours().toString().padStart(2, '0') + ':' +
                   now.getMinutes().toString().padStart(2, '0');
 
-  // 计算完整内容指纹（含 prompt 值）—— Issue 4 修正
+  // 计算完整内容指纹（含 prompt 值）
   const contentFp = computeContentFingerprint(tabsConfig, tabValues);
 
   // 匹配或创建 lineage
@@ -157,32 +156,28 @@ async function _onPipelineComplete(pipeline, app, lineageManager, tabValues, tab
   app.currentLineageId = lineageId;
   app.currentVersionIndex = versionIndex;
 
-  // ★ 将最终结果加载到画布上
+  // 将最终结果加载到画布上
   app.canvas.loadVersion(lastResult);
 
-  // 历史面板
-  if (isNew) {
-    const genId = 'gen_' + (app.history.items.length + 1);
-    app.history.addItem({
-      label: genId,
-      time: timeStr,
-      versionCount: 1,
-      versionActive: 0,
-      lineageId,
-      type: lastResult.type || 'svg',
-      svg: lastResult.svg || '',
-      dataUrl: lastResult.dataUrl || '',
-      active: true,
-      current: true
-    });
-  } else {
-    app.history.updateActiveItem(versionIndex, lastResult, timeStr);
+  // 更新 lineage 内嵌 history 字段
+  const lineage = app.versionLineages[lineageId];
+  if (lineage) {
+    if (typeof lineage.updateHistory === 'function') {
+      lineage.updateHistory(
+        versionIndex,
+        lastResult.type,
+        lastResult.svg,
+        timeStr,
+        lastResult.thumbnail || ''
+      );
+    }
   }
 
-  // 持久化 lineage 元数据
-  lineageManager.persistMeta();
+  // 重建历史面板
+  app._rebuildHistoryItems();
+  app.history.render();
 
-  // 触发 PersistenceGuard 保存
+  // 触发 PersistenceGuard 保存（内部会调 saveLineages，无需单独 persistMeta）
   if (app._persistenceGuard) {
     app._persistenceGuard.markDirty();
     await app._persistenceGuard.flush();

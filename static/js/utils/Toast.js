@@ -121,4 +121,48 @@ export function installGlobalErrorHandlers() {
       : (typeof reason === 'string' ? reason : '未处理的 Promise 拒绝');
     showToast('异步错误: ' + msg, 'error', 12000);
   });
+
+  // 全局 console 劫持
+  installConsoleLogToToast();
+}
+// ================================================================
+//  全局 console 劫持（monkey-patch）
+// ================================================================
+
+let _consolePatched = false;
+
+export function installConsoleLogToToast() {
+  if (_consolePatched) return;
+  _consolePatched = true;
+
+  const methods = ['log', 'warn', 'error', 'info', 'debug'];
+
+  methods.forEach((method) => {
+    const original = console[method];
+    if (typeof original !== 'function') return;
+
+    console[method] = (...args) => {
+      // 先调原始方法，保持控制台正常输出
+      original.apply(console, args);
+
+      // 把参数序列化成可读字符串
+      const message = args
+        .map((a) => {
+          if (a instanceof Error) return a.message;
+          if (typeof a === 'object') {
+            try { return JSON.stringify(a); } catch (_) { return String(a); }
+          }
+          return String(a);
+        })
+        .join(' ');
+
+      // 忽略空消息
+      if (!message.trim()) return;
+
+      // 根据级别选择 toast 类型
+      const toastType = method === 'error' ? 'error' : 'warning';
+
+      showToast(`[console.${method}] ${message}`, toastType, 8000);
+    };
+  });
 }

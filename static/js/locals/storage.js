@@ -8,9 +8,11 @@
  */
 
 export const KEYS = Object.freeze({
-  history:      'stroke_history',
-  lineages:     'stroke_lineages',
-  fingerprints: 'stroke_fingerprints',
+  // 旧 key（迁移用，不再主动写入）
+  _old_lineages:  'stroke_lineages',
+  _old_fingerprints: 'stroke_fingerprints',
+  _old_history:   'stroke_history',
+  _old_tabValues: 'stroke_tab_values',
   curLineage:   'stroke_cur_lineage',
   curVersion:   'stroke_cur_version',
   tabState:     'stroke_tab_state',
@@ -28,7 +30,7 @@ export const KEYS = Object.freeze({
 
 export function safeSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 export function safeGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
-function safeRemove(k) { try { localStorage.removeItem(k); } catch (e) {} }
+export function safeRemove(k) { try { localStorage.removeItem(k); } catch (e) {} }
 export function setJSON(k, o) { try { safeSet(k, JSON.stringify(o)); } catch (e) {} }
 export function getJSON(k, def) {
   const r = safeGet(k);
@@ -37,37 +39,33 @@ export function getJSON(k, def) {
 }
 
 export function saveAll(d) {
-  setJSON(KEYS.history,      d.historyItems);
-  setJSON(KEYS.lineages,     d.lineages);
-  setJSON(KEYS.fingerprints, d.fingerprints);
   safeSet(KEYS.curLineage,   d.currentLineageId || '');
   safeSet(KEYS.curVersion,   String(d.currentVersionIndex ?? 0));
   setJSON(KEYS.tabState,     { customTabs: d.customTabs, tabOrder: d.tabOrder });
-  setJSON(KEYS.tabValues,    d.tabValues);
-  setJSON(KEYS.apiSettings,  d.apiValues);
+  if (d.apiValues !== undefined) {
+    setJSON(KEYS.apiSettings, d.apiValues);
+  }
 }
 
 export function loadAll() {
   const ts = getJSON(KEYS.tabState, { customTabs: [], tabOrder: null });
   return {
-    historyItems:        getJSON(KEYS.history, []),
-    lineages:            getJSON(KEYS.lineages, {}),
-    fingerprints:        getJSON(KEYS.fingerprints, {}),
     currentLineageId:    safeGet(KEYS.curLineage) || null,
     currentVersionIndex: parseInt(safeGet(KEYS.curVersion)) || 0,
     customTabs:          ts.customTabs || [],
     tabOrder:            ts.tabOrder || null,
-    tabValues:           getJSON(KEYS.tabValues, {}),
     apiValues:           getJSON(KEYS.apiSettings, null),
   };
 }
 
 export function clearHistory() {
-  safeRemove(KEYS.history);
-  safeRemove(KEYS.lineages);
-  safeRemove(KEYS.fingerprints);
   safeRemove(KEYS.curLineage);
   safeRemove(KEYS.curVersion);
+  // 旧 key 清理
+  safeRemove(KEYS._old_lineages);
+  safeRemove(KEYS._old_fingerprints);
+  safeRemove(KEYS._old_history);
+  safeRemove(KEYS._old_tabValues);
 }
 
 export function clearAll() {

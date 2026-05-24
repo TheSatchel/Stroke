@@ -14,9 +14,8 @@
  *   - 存储持久化（委托 PersistenceGuard）
  */
 
-import { parse as parseSegments } from './segmentparser.js';
+import { parse as parseSegments } from '../services/segmentparser.js';
 import { svgToBase64DataUrl } from '../adapters/ResponseParser.js';
-import { generateMaskDataUrl } from '../utils/MaskGenerator.js';
 import { createThumbnail } from '../utils/Image.js';
 import { loadConfigs } from '../locals/storage.js';
 
@@ -57,6 +56,7 @@ function backoffDelay(attempt) {
  * @property {string} callTabId
  * @property {string} prompt
  * @property {string[]} imageBase64List
+ * @property {Array} maskSpecs
  * @property {string} configId
  * @property {number} retryCount
  * @property {string} status   - 'pending' | 'running' | 'done' | 'failed'
@@ -114,7 +114,7 @@ export default class GenerationPipeline {
    * @param {Object} tabValues
    * @param {Object} callWidgetConfigs - { [callTabId]: { configId, params } }
    */
-  start(tabsConfig, tabValues, callWidgetConfigs) {
+  async start(tabsConfig, tabValues, callWidgetConfigs) {
     if (this.running) {
       console.warn('[GenerationPipeline] 已有运行中的管线');
       return;
@@ -127,34 +127,55 @@ export default class GenerationPipeline {
     }
     const segments = parseSegments(tabsConfig, tabValues, configIds);
 
-    // 获取生成尺寸（来自第一个 call widget config，或默认 1024x1024）
-    let outputWidth = 1024;
-    let outputHeight = 1024;
+    // 读取 mask_mode（来自第一个 call widget config，或默认 'transparent'）
     const firstCallConfig = Object.values(callWidgetConfigs || {})[0];
-    if (firstCallConfig && firstCallConfig.params) {
-      if (firstCallConfig.params.width) outputWidth = firstCallConfig.params.width;
-      if (firstCallConfig.params.height) outputHeight = firstCallConfig.params.height;
-    }
+    const maskMode = firstCallConfig?.params?.mask_mode || 'transparent';
 
-    // 构建任务列表
-    this.tasks = segments.map(seg => ({
-      callTabId: seg.callTabId,
-      prompt: seg.prompt,
-      imageBase64List: seg.imageBase64List || [],
-      regionItems: (seg.regionItems || []).map(r => ({
-        ...r,
-        maskDataUrl: generateMaskDataUrl(
-          r.points, r.displayWidth, r.displayHeight,
-          outputWidth, outputHeight,
-          r.imageWidth || 0, r.imageHeight || 0
-        )
-      })),
-      configId: seg.configId,
-      retryCount: 0,
-      status: 'pending',
-      result: null,
-      _callWidgetConfig: callWidgetConfigs[seg.callTabId] || null
-    }));
+    // 构建任务列表（异步，因为 overlay 模式需要加载原图）
+    const taskPromises = segments.map(async (seg) => {
+      const imageList = [...(seg.imageBase64List || [])];
+      const originalImage = imageList.length > 0 ? imageList[0] : null;
+
+      // 为每个 maskSpec 生成蒙版图，追加到 imageBase64List
+      for (const spec of (seg.maskSpecs || [])) {
+        try {
+          const { generateMaskDataUrl } = await import('../utils/MaskGenerator.js');
+          const mask = await generateMaskDataUrl(
+            spec.points,
+            spec.displayWidth,
+            spec.displayHeight,
+            spec.outputWidth,
+            spec.outputHeight,
+            maskMode,
+            originalImage,
+            spec.type,
+            spec.pointX,
+            spec.pointY,
+            spec.color,
+            spec.label
+          );
+          if (mask) {
+            imageList.push(mask);
+          }
+        } catch (e) {
+          console.error('[GenerationPipeline] 蒙版生成失败:', e);
+        }
+      }
+
+      return {
+        callTabId: seg.callTabId,
+        prompt: seg.prompt,
+        imageBase64List: imageList,
+        maskSpecs: seg.maskSpecs || [],
+        configId: seg.configId,
+        retryCount: 0,
+        status: 'pending',
+        result: null,
+        _callWidgetConfig: callWidgetConfigs[seg.callTabId] || null
+      };
+    });
+
+    this.tasks = await Promise.all(taskPromises);
 
     this.running = true;
     this.paused = false;
@@ -165,10 +186,12 @@ export default class GenerationPipeline {
     // 监听 visibilitychange
     this._listenVisibility();
 
-    // 开始执行
-    this._executeAll().finally(() => {
+    // 开始执行并等待完成
+    try {
+      await this._executeAll();
+    } finally {
       this._cleanup();
-    });
+    }
   }
 
   /**
@@ -285,8 +308,7 @@ export default class GenerationPipeline {
 
         const imageResult = await this.generator.generate({
           prompt: task.prompt,
-          imageBase64List: imageList,
-          regionItems: task.regionItems
+          imageBase64List: imageList
         });
 
         // 根据 ImageResult.type 分派

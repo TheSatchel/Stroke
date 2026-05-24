@@ -10,8 +10,9 @@
  */
 
 const DB_NAME = 'stroke-app';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // bumped for app_state key
 const STORE_NAME = 'binaries';
+const LINEAGES_KEY = 'app_state';
 
 /** @typedef {{ dataUrl: string, thumbnail: string, svg: string }} BinaryEntry */
 
@@ -160,6 +161,44 @@ export async function clearAllBinaries() {
  * 估算 IndexedDB 使用量（如果 Storage API 可用）
  * @returns {Promise<{ usage: number, quota: number }|null>}
  */
+export async function putState(lineages) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).put(lineages, LINEAGES_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/**
+ * 读取全量 lineage 状态
+ * @returns {Promise<Object|null>}
+ */
+export async function getState() {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const req = tx.objectStore(STORE_NAME).get(LINEAGES_KEY);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/**
+ * 删除全量 lineage 状态
+ * @returns {Promise<void>}
+ */
+export async function deleteState() {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).delete(LINEAGES_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 export async function estimateStorage() {
   if (navigator.storage && navigator.storage.estimate) {
     try {

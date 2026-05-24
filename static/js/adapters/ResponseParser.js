@@ -37,6 +37,19 @@ function extractFromMarkdownImage(text) {
 }
 
 /**
+ * 检测并提取 markdown 图片语法中的普通 URL ![alt](https://...)
+ * 有些模型返回图片链接而非 data URL
+ */
+function extractUrlFromMarkdownImage(text) {
+  const imgPattern = /!\[[^\]]*\]\((https?:\/\/[^)]+)\)/i;
+  const match = text.match(imgPattern);
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+  return null;
+}
+
+/**
  * 将光栅图片 data URL (JPEG/PNG/GIF/WEBP) 包裹在 SVG <image> 标签中
  * 这样整个管线（Canvas、历史版本、Widget 预览）都能统一用 SVG 处理
  *
@@ -189,6 +202,13 @@ export function cleanResponse(rawText, opts = {}) {
       } catch (e) { /* fall through */ }
     }
     return { type: 'raster', dataUrl: mdImage };
+  }
+
+  // ── 3.5. Markdown 图片链接 ![alt](https://...) ──
+  const mdUrl = extractUrlFromMarkdownImage(text);
+  if (mdUrl) {
+    console.log(`[${name}] 从 markdown 图片语法中提取到 URL: ${mdUrl}`);
+    return { type: 'url', url: mdUrl };
   }
 
   // ── 4. Markdown 代码块 ──

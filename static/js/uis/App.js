@@ -12,10 +12,12 @@ import SettingsModal from '../components/setting-modal/SettingsModal.js';
 import ConfigModal from '../components/setting-modal/ConfigModal.js';
 import { migrateLegacyPresets, clearAll } from '../locals/storage.js';
 import { GeneratorService } from '../Adapter.js';
-import { saveAppState, loadAppState, saveSettingsBarToLineage, loadSettingsBarFromLineage, deleteHistoryItem, deleteAllHistory } from '../locals/Persistence.js';
+import { saveAppState, loadAppState, saveSettingsBarToLineage, loadSettingsBarFromLineage, deleteHistoryItem, deleteAllHistory, TEMPLATE_LINEAGE_ID } from '../locals/Persistence.js';
+import { loadVersionBinary } from '../locals/StorageManager.js';
 import { performGeneration } from '../generates/Generator.js';
 import PersistenceGuard from '../locals/PersistenceGuard.js';
 import LineageManager from '../locals/LineageManager.js';
+import SegmentationService from '../services/SegmentationService.js';
 
 const REGION_COLORS = ['#3B82F6', '#E11D48', '#F59E0B', '#10B981', '#8B5CF6', '#F97316'];
 const REGION_LABELS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -33,15 +35,17 @@ export default class App {
     // 迁移旧预设 → 新配置
     migrateLegacyPresets();
 
+    // 预热 AI 分割模型 — 与 UI 渲染并行，避免首次点选等待
+    this._segPreheat = SegmentationService.instance.load();
+
     // 数据层
     this.versionLineages = {};
-    this.configFingerprints = {};
     this.currentLineageId = null;
     this.currentVersionIndex = 0;
     this._regionCount = 0;
 
-    // 注入 Manager（Issue 1+3+4）
-    this._lineageManager = new LineageManager(this.versionLineages, this.configFingerprints);
+    // 注入 Manager
+    this._lineageManager = new LineageManager(this.versionLineages);
     this._persistenceGuard = new PersistenceGuard(this);
 
     // 左栏 — 历史版本
@@ -84,8 +88,10 @@ export default class App {
     // --- 组件间连线 ---
     this._wireEvents();
 
-    // 从存储恢复
-    loadAppState(this);
+    // 从存储恢复（异步）
+    this._initPromise = loadAppState(this).then(() => {
+      console.log('[App] 状态恢复完成');
+    });
   }
 
   // ================================================================
@@ -107,31 +113,43 @@ export default class App {
   _wireEvents() {
     const self = this;
 
-    // 点击历史版本 → 加载版本到画布 + 区域 prompt 显隐 + 恢复 setting bar
-    this.history.onSelect = (i) => {
+    // 点击历史版本 → 加载版本到画布 + 恢复 setting bar
+    this.history.onSelect = async (i) => {
       const item = self.history.items[i];
       if (!item) return;
       self.currentLineageId = item.lineageId;
       self.currentVersionIndex = item.versionActive;
-      // 从 lineage 恢复 setting bar（tabsConfig + 值 + 排序）
+      // 从 lineage 恢复 setting bar
       loadSettingsBarFromLineage(self, item.lineageId);
       const lineage = self.versionLineages[item.lineageId];
-      if (lineage && lineage.versions[item.versionActive]) {
-        self.canvas.loadVersion(lineage.versions[item.versionActive]);
+      if (lineage) {
+        // 懒水合版本二进制
+        await lineage.hydrateVersion(item.versionActive, loadVersionBinary, item.lineageId);
+        const v = lineage.getVersion(item.versionActive);
+        if (v) self.canvas.loadVersion(v);
       }
-      // regionLabel 相关旧逻辑已移除
+      self.config.setDownloadLineage(item.lineageId, item.versionActive);
+      self.config.showPostGen();
     };
 
-    // 版本切换
-    this.history.onVersionSwitch = (itemIndex, versionIndex) => {
+    // 版本切换（步进器）
+    this.history.onVersionSwitch = async (itemIndex, versionIndex) => {
       const item = self.history.items[itemIndex];
       if (!item) return;
       item.versionActive = versionIndex;
       self.currentVersionIndex = versionIndex;
       const lineage = self.versionLineages[item.lineageId];
-      if (lineage && lineage.versions[versionIndex]) {
-        self.canvas.loadVersion(lineage.versions[versionIndex]);
+      if (lineage) {
+        if (typeof lineage.setHistoryVersionActive === 'function') {
+          lineage.setHistoryVersionActive(versionIndex);
+        } else if (lineage.history) {
+          lineage.history.versionActive = versionIndex;
+        }
+        await lineage.hydrateVersion(versionIndex, loadVersionBinary, item.lineageId);
+        const v = lineage.getVersion(versionIndex);
+        if (v) self.canvas.loadVersion(v);
       }
+      self.config.setDownloadLineage(item.lineageId, versionIndex);
       saveAppState(self);
     };
 
@@ -141,7 +159,7 @@ export default class App {
       saveAppState(self);
       // 取消所有条目的 current 标记
       self.history.items.forEach(it => { it.current = false; it.active = false; });
-      self.currentLineageId = null;
+      self.currentLineageId = TEMPLATE_LINEAGE_ID;
       self.currentVersionIndex = 0;
       // 重置 setting bar 为默认 tabs
       self.config.tabsConfig = defaultConfigTabs.map(t => ({
@@ -151,6 +169,7 @@ export default class App {
       self.config.render();
       self.canvas.clear();
       self._rewireImageSync();
+      self._rebuildHistoryItems();
       self.history.render();
       saveAppState(self);
     };
@@ -158,6 +177,17 @@ export default class App {
     // 删除历史项
     this.history.onDelete = (i) => {
       deleteHistoryItem(self, i);
+    };
+
+    // 重命名 lineage
+    this.history.onRename = (itemIndex, newName) => {
+      const item = self.history.items[itemIndex];
+      if (!item) return;
+      const lineage = self.versionLineages[item.lineageId];
+      if (lineage) {
+        lineage.name = newName || '';
+        self._persistenceGuard.markDirty();
+      }
     };
 
     // ★ 选区确认 → 动态创建 region_prompt 实例
@@ -278,6 +308,11 @@ export default class App {
         }
       }
     }
+  }
+
+  _rebuildHistoryItems() {
+    if (!this.history || typeof this.history.rebuildItems !== 'function') return;
+    this.history.rebuildItems(this.versionLineages, this.currentLineageId);
   }
 
   /**

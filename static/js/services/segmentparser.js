@@ -92,29 +92,31 @@ function findImageBase64List(tabDefs, tabValues, startIndex, endIndex) {
 }
 
 /**
- * 查找段范围内所有 region_prompt 的原始数据，构建 regionItems
- * @returns {Array<{prompt, imageDataUrl, points, displayWidth, displayHeight, type, label, color}>}
+ * 查找段范围内所有 region_prompt 的原始数据，构建 maskSpecs（替代 findRegionItems）
+ * 只收集几何元数据，不在此处生成蒙版图。
+ * 蒙版生成推迟到 GenerationPipeline，以便从 adapter config 读取 mask_mode。
+ * @returns {Array<{points, type, displayWidth, displayHeight, outputWidth, outputHeight, pointX, pointY, color, label}>}
  */
-function findRegionItems(tabDefs, tabValues, startIndex, endIndex) {
-  const items = [];
+function buildMaskSpecs(tabDefs, tabValues, startIndex, endIndex) {
+  const specs = [];
   for (let i = startIndex; i < endIndex && i < tabDefs.length; i++) {
     const def = tabDefs[i];
-    if (def.type === 'region_prompt' && def.data) {
-      items.push({
-        prompt: tabValues[def.id + '__raw'] || '',
-        imageDataUrl: def.data.imageDataUrl || '',
-        points: def.data.points || [],
-        displayWidth: def.data.canvasWidth || 512,
-        displayHeight: def.data.canvasHeight || 512,
-        imageWidth: def.data.imageWidth || 0,
-        imageHeight: def.data.imageHeight || 0,
-        type: def.data.type || 'lasso',
-        label: def.data.label || 'A',
-        color: def.data.color || '#3B82F6',
-      });
-    }
+    if (def.type !== 'region_prompt' || !def.data) continue;
+    const d = def.data;
+    specs.push({
+      points:        d.points || [],
+      type:          d.type || 'lasso',
+      displayWidth:  d.canvasWidth || 512,
+      displayHeight: d.canvasHeight || 512,
+      outputWidth:   d.naturalWidth || d.canvasWidth || 512,
+      outputHeight:  d.naturalHeight || d.canvasHeight || 512,
+      pointX:        d.x ?? d.points?.[0]?.x ?? 0,
+      pointY:        d.y ?? d.points?.[0]?.y ?? 0,
+      color:         d.color || '#3B82F6',
+      label:         d.label || 'A',
+    });
   }
-  return items;
+  return specs;
 }
 
 /**
@@ -144,7 +146,7 @@ export function parse(tabsConfig, tabValues, callWidgetValues = {}) {
         endIndex,
         prompt,
         imageBase64List: [], // 稍后填
-        regionItems: findRegionItems(tabsConfig, tabValues, segmentStart, endIndex), // 新增
+        maskSpecs: buildMaskSpecs(tabsConfig, tabValues, segmentStart, endIndex),
         fingerprint,
         configId
       });

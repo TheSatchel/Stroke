@@ -11,17 +11,13 @@
  *   const svg = await gen.generate({ prompt, imageBase64 });
  */
 
-import { GPTChatAdapter } from './adapters/GeminiAdapter.js';
-import { GPTImageAdapter } from './adapters/GPTImageAdapter.js';
-import { XianyuGeminiAdapter } from './adapters/XianyuGeminiAdapter.js';
-import { XianyuGPTAdapter } from './adapters/XianyuGPTAdapter.js';
+import { GPTChatAdapter } from './adapters/GPTChatAdapter.js';
+import { XianyuGPTChatAdapter } from './adapters/XianyuGPTChatAdapter.js';
 import { showWarningToast } from './utils/Toast.js';
 
 const BUILTIN = [
   GPTChatAdapter,
-  GPTImageAdapter,
-  XianyuGeminiAdapter,
-  XianyuGPTAdapter
+  XianyuGPTChatAdapter,
 ];
 
 export class GeneratorService {
