@@ -78,7 +78,6 @@ export default class Canvas {
     this.canvasImg.addEventListener('mousedown', e => this._onMouseDown(e));
     this.canvasImg.addEventListener('mousemove', e => this._onMouseMove(e));
     this.canvasImg.addEventListener('mouseup', e => this._onMouseUp(e));
-    this.canvasImg.addEventListener('dblclick', e => this._onDblClick(e));
 
     this.cph = this._createPlaceholder();
     this.canvasImg.appendChild(this.cph);
@@ -397,12 +396,6 @@ export default class Canvas {
     this._showConfirmBar();
   }
 
-  _onDblClick(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    this.clear();
-    if (this.onClearCanvas) this.onClearCanvas();
-  }
 
   // ================================================================
   //  Lasso 路径 — 委托给 SvgOverlay

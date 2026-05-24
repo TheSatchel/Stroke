@@ -25,7 +25,6 @@ export default class CanvasRefImageWidget extends AbstractImageWidget {
     const body = this.container.querySelector('.widget-body');
     if (body) body.insertBefore(this.emptyState, this.preview);
 
-    this.removeBtn.remove();
 
     // 修正初始显示状态
     if (this._value && this._value.startsWith('data:image/')) {
