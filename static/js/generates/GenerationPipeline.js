@@ -145,7 +145,8 @@ export default class GenerationPipeline {
         ...r,
         maskDataUrl: generateMaskDataUrl(
           r.points, r.displayWidth, r.displayHeight,
-          outputWidth, outputHeight
+          outputWidth, outputHeight,
+          r.imageWidth || 0, r.imageHeight || 0
         )
       })),
       configId: seg.configId,

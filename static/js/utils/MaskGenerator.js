@@ -7,17 +7,17 @@
 
 /**
  * @param {Array<{x: number, y: number}>} points        - display 坐标系的顶点
- * @param {number} displayWidth  - 显示区域宽度
- * @param {number} displayHeight - 显示区域高度
+ * @param {number} displayWidth  - canvas 容器显示宽度
+ * @param {number} displayHeight - canvas 容器显示高度
  * @param {number} outputWidth   - 输出蒙版宽度 (默认 1024)
  * @param {number} outputHeight  - 输出蒙版高度 (默认 1024)
+ * @param {number} imageWidth    - 原图自然宽度 (用于 contain 计算)
+ * @param {number} imageHeight   - 原图自然高度 (用于 contain 计算)
  * @returns {string} data:image/png;base64,...
  *   透明背景 (=保留区域)，多边形填充白色 (=编辑区域)
  */
-export function generateMaskDataUrl(points, displayWidth, displayHeight, outputWidth = 1024, outputHeight = 1024) {
-  if (!points || points.length < 3) {
-    // 最小 3 点才能形成封闭区域，返回全透明蒙版（不编辑任何内容）
-    console.warn('[MaskGenerator] 点数不足 3，返回全透明蒙版');
+export function generateMaskDataUrl(points, displayWidth, displayHeight, outputWidth = 1024, outputHeight = 1024, imageWidth = 0, imageHeight = 0) {
+  if (!points || points.length === 0) {
     return _emptyMask(outputWidth, outputHeight);
   }
 
@@ -26,22 +26,54 @@ export function generateMaskDataUrl(points, displayWidth, displayHeight, outputW
   canvas.height = outputHeight;
   const ctx = canvas.getContext('2d');
 
-  // 透明背景（OpenAI Images API 语义：透明/黑色 = 保留不变）
   ctx.clearRect(0, 0, outputWidth, outputHeight);
 
-  // 缩放比例: display → output
-  const scaleX = outputWidth / (displayWidth || 1);
-  const scaleY = outputHeight / (displayHeight || 1);
-
-  // 绘制白色多边形（白色 = 需要重新生成/编辑的区域）
-  ctx.beginPath();
-  ctx.moveTo(points[0].x * scaleX, points[0].y * scaleY);
-  for (let i = 1; i < points.length; i++) {
-    ctx.lineTo(points[i].x * scaleX, points[i].y * scaleY);
+  // 计算 canvas 容器内图像的实际绘制区域 (object-fit:contain)
+  const imgW = imageWidth || displayWidth;
+  const imgH = imageHeight || displayHeight;
+  const imgAspect = imgW / imgH;
+  const containerAspect = displayWidth / displayHeight;
+  let drawW, drawH, offsetX, offsetY;
+  if (imgAspect > containerAspect) {
+    drawW = displayWidth;
+    drawH = displayWidth / imgAspect;
+    offsetX = 0;
+    offsetY = (displayHeight - drawH) / 2;
+  } else {
+    drawH = displayHeight;
+    drawW = displayHeight * imgAspect;
+    offsetX = (displayWidth - drawW) / 2;
+    offsetY = 0;
   }
-  ctx.closePath();
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fill();
+
+  const scaleX = outputWidth / drawW;
+  const scaleY = outputHeight / drawH;
+
+  if (points.length === 1) {
+    // 点选：生成以该点为中心的圆形蒙版
+    const px = points[0].x;
+    const py = points[0].y;
+    const cx = (px - offsetX) * scaleX;
+    const cy = (py - offsetY) * scaleY;
+    const r = 40 * Math.min(scaleX, scaleY);
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, Math.max(r, 16), 0, Math.PI * 2);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fill();
+  } else if (points.length >= 3) {
+    // 多边形：映射到输出坐标（减去letterboxing偏移）
+    ctx.beginPath();
+    ctx.moveTo((points[0].x - offsetX) * scaleX, (points[0].y - offsetY) * scaleY);
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo((points[i].x - offsetX) * scaleX, (points[i].y - offsetY) * scaleY);
+    }
+    ctx.closePath();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fill();
+  } else {
+    return _emptyMask(outputWidth, outputHeight);
+  }
 
   return canvas.toDataURL('image/png');
 }

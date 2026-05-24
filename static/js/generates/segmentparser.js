@@ -106,6 +106,8 @@ function findRegionItems(tabDefs, tabValues, startIndex, endIndex) {
         points: def.data.points || [],
         displayWidth: def.data.canvasWidth || 512,
         displayHeight: def.data.canvasHeight || 512,
+        imageWidth: def.data.imageWidth || 0,
+        imageHeight: def.data.imageHeight || 0,
         type: def.data.type || 'lasso',
         label: def.data.label || 'A',
         color: def.data.color || '#3B82F6',
