@@ -22,6 +22,7 @@ async def manifest():
         "theme_color": settings.PWA_THEME_COLOR,
         "background_color": settings.PWA_BACKGROUND_COLOR,
         "icons": settings.PWA_ICONS,
+        "screenshots": settings.PWA_SCREENSHOTS,
         "categories": ["productivity", "utilities"],
     }
     return JSONResponse(content=data, media_type="application/manifest+json")
