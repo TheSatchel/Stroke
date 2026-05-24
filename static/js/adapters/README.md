@@ -13,7 +13,7 @@
         ▼
   BaseAdapters  (抽象基类)               ← 定义 generate() 契约
         │
-        ├── XianyuGeminiAdapter  (咸鱼 Gemini)
+        ├── XianyuGPTChatAdapter  (咸鱼 Gemini)
         ├── XianyuGPTAdapter     (咸鱼 GPT Image)
         ├── (未来: OpenAIAdapter)
         └── (未来: ReplicateAdapter)
@@ -193,14 +193,14 @@ export class MyAdapter extends BaseAdapters {
 ```js
 // static/js/Adapter.js
 
-import { MyAdapter } from './adapters/MyAdapter.js';
+import {MyAdapter} from './adapters/MyAdapter.js';
 
 const BUILTIN = [
-  MyAdapter,                // ← 新增
-  GPTChatAdapter,
-  GPTImageAdapter,
-  XianyuGeminiAdapter,
-  XianyuGPTAdapter,
+    MyAdapter,                // ← 新增
+    GPTChatAdapter,
+    GPTImageAdapter,
+    XianyuGPTChatAdapter,
+    XianyuGPTAdapter,
 ];
 ```
 

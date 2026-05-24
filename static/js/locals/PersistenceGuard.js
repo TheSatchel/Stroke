@@ -14,17 +14,9 @@
  *   - sendBeacon（PWA 场景无可靠后端端点）
  */
 
-import {
-  saveFullState,
-  saveHistory,
-  saveLineagesMeta,
-  saveFingerprints,
-  saveCurrentPointer,
-  saveTabValues,
-  saveApiSettings
-} from './StorageManager.js';
-import { saveAll } from './storage.js';
-import { HIDDEN_LINEAGE_ID } from './Persistence.js';
+import { saveFullState, saveLineages } from './StorageManager.js';
+import { saveAll, safeSet, KEYS } from './storage.js';
+import { TEMPLATE_LINEAGE_ID, saveSettingsBarToLineage } from './Persistence.js';
 
 const DEBOUNCE_MS = 300;
 
@@ -99,13 +91,20 @@ export default class PersistenceGuard {
     if (!this._lastSnapshot) return;
     try {
       const snap = JSON.parse(this._lastSnapshot);
-      // 回滚 localStorage 部分（使用顶部导入的函数）
-      saveHistory(snap.historyItems || []);
-      saveLineagesMeta(snap.lineages || {});
-      saveFingerprints(snap.fingerprints || {});
-      saveCurrentPointer(snap.currentLineageId || null, snap.currentVersionIndex || 0);
-      saveTabValues(snap.tabValues || {});
-      saveApiSettings(snap.apiValues);
+      // 回滚 lineage 数据到 IDB
+      if (snap.lineages) {
+        saveLineages(snap.lineages).catch(e => console.warn('[PersistenceGuard] 回滚 saveLineages 失败:', e));
+      }
+      // 回滚 LS 指针
+      if (snap.currentLineageId !== undefined) {
+        safeSet(KEYS.curLineage, snap.currentLineageId || '');
+      }
+      if (snap.currentVersionIndex !== undefined) {
+        safeSet(KEYS.curVersion, String(snap.currentVersionIndex));
+      }
+      if (snap.apiValues !== undefined) {
+        safeSet(KEYS.apiSettings, JSON.stringify(snap.apiValues));
+      }
       console.warn('[PersistenceGuard] 已从快照回滚');
     } catch (e) {
       console.error('[PersistenceGuard] 快照回滚失败:', e);
@@ -198,19 +197,15 @@ export default class PersistenceGuard {
     try {
       const app = this.app;
 
-      // 1. 先拍快照（仅 LS 部分，用于回滚）
+      // 1. 先拍快照（用于回滚）
       this._lastSnapshot = JSON.stringify({
-        historyItems: app.history.items,
         lineages: app.versionLineages,
-        fingerprints: app.configFingerprints,
         currentLineageId: app.currentLineageId,
         currentVersionIndex: app.currentVersionIndex,
-        tabValues: app.config.getTabValues(),
         apiValues: app.settings.getValues ? app.settings.getValues() : null
       });
 
       // 2. 收集需要保存的二进制数据
-      // 当前活动版本如果有二进制数据，标记为需要写入 IDB
       let newBinaries = null;
       if (app.currentLineageId && app.versionLineages[app.currentLineageId]) {
         const lineage = app.versionLineages[app.currentLineageId];
@@ -230,12 +225,11 @@ export default class PersistenceGuard {
 
       // 3. 写入存储
       await saveFullState({
-        historyItems: app.history.items,
         lineages: app.versionLineages,
-        fingerprints: app.configFingerprints,
         currentLineageId: app.currentLineageId,
         currentVersionIndex: app.currentVersionIndex,
-        tabValues: app.config.getTabValues(),
+        customTabs: app.config.tabsConfig.filter(t => t.id.startsWith('custom_')),
+        tabOrder: app.config.tabsConfig.map(t => t.id),
         apiValues: app.settings.getValues ? app.settings.getValues() : null,
         newBinaries
       });
@@ -244,7 +238,7 @@ export default class PersistenceGuard {
       console.log('[PersistenceGuard] 保存成功');
     } catch (err) {
       console.error('[PersistenceGuard] 保存失败:', err);
-      // 回滚 LS 部分到快照
+      // 回滚到快照
       this.rollbackFromSnapshot();
     } finally {
       this._saving = false;
@@ -259,24 +253,15 @@ export default class PersistenceGuard {
     try {
       const app = this.app;
 
-      const targetId = app.currentLineageId || HIDDEN_LINEAGE_ID;
+      const targetId = app.currentLineageId || TEMPLATE_LINEAGE_ID;
       // 保存 setting bar 到 lineage
-      if (app.versionLineages[targetId]) {
-        const tabsToSave = app.config.tabsConfig.filter(tab => tab.unpersist !== true);
-        app.versionLineages[targetId].tabsConfig = tabsToSave.map(t => ({ ...t }));
-        app.versionLineages[targetId].tabOrder = app.config.tabsConfig.map(t => t.id);
-        app.versionLineages[targetId].tabValues = app.config.getTabValues();
-      }
+      saveSettingsBarToLineage(app, targetId);
 
       saveAll({
-        historyItems: app.history.items,
-        lineages: app.versionLineages,
-        fingerprints: app.configFingerprints,
         currentLineageId: app.currentLineageId,
         currentVersionIndex: app.currentVersionIndex,
         customTabs: app.config.tabsConfig.filter(t => t.id.startsWith('custom_')),
         tabOrder: app.config.tabsConfig.map(t => t.id),
-        tabValues: app.config.getTabValues(),
         apiValues: app.settings.getValues ? app.settings.getValues() : null
       });
 

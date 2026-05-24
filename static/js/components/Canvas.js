@@ -7,7 +7,7 @@
 
 import { el, svgEl, iconSvg } from '../utils/DOM.js';
 import { isValidSvg } from '../adapters/ResponseParser.js';
-import { showWarningToast, showToast } from '../utils/Toast.js';
+import { showWarningToast, showToast, dismissToast } from '../utils/Toast.js';
 import SvgOverlay from './canvas/SvgOverlay.js';
 import SegmentationService from '../services/SegmentationService.js';
 
@@ -41,22 +41,29 @@ export default class Canvas {
       showToast('WebAssembly 被禁用，AI 分割模型将被禁用', 'error', 10000);
     }
 
-    // 如果 WASM 可用，后台预加载模型
-    if (this._segService.state === 'IDLE') {
+    // 如果 WASM 可用，预热模型（App.js 可能已触发，load() 内部会去重）
+    if (this._segService.state !== 'WASM_DISABLED') {
       this._segService.load().then(() => this._updateSelectButtonState());
     }
+    this._updateSelectButtonState();
 
     this.render();
   }
 
   _updateSelectButtonState() {
     const state = this._segService.state;
-    const disabled = (state === 'WASM_DISABLED');
+    const disabled = (state === 'WASM_DISABLED' || state === 'DOWNLOADING' || state === 'IDLE');
     if (this.btnSel) {
       this.btnSel.disabled = disabled;
-      this.btnSel.title = disabled
-        ? 'WebAssembly 被禁用，AI 选择不可用'
-        : '点击选择区域 (AI 分割)';
+      if (state === 'WASM_DISABLED') {
+        this.btnSel.title = 'WebAssembly 被禁用，AI 选择不可用';
+      } else if (state === 'DOWNLOADING' || state === 'IDLE') {
+        this.btnSel.title = 'AI 分割模型加载中…';
+      } else if (state === 'READY') {
+        this.btnSel.title = '点击选择区域 (AI 分割)';
+      } else {
+        this.btnSel.title = 'AI 分割模型未就绪';
+      }
     }
   }
 
@@ -88,6 +95,11 @@ export default class Canvas {
     this.container.appendChild(this.canvasArea);
 
     this._buildToolbar();
+
+    this._resizeObserver = new ResizeObserver(() => {
+      if (this._svgOverlay) this._svgOverlay.refreshAllSelections();
+    });
+    this._resizeObserver.observe(this.canvasImg);
   }
 
   // ================================================================
@@ -128,25 +140,17 @@ export default class Canvas {
   }
   _hideSelMarker() { this._selMarker.style.display = 'none'; }
 
-  _getContainedImageRect(imgEl, containerW, containerH) {
-    const naturalW = imgEl.naturalWidth;
-    const naturalH = imgEl.naturalHeight;
-    if (!naturalW || !naturalH) return { offsetX: 0, offsetY: 0, drawW: containerW, drawH: containerH };
-    const imgAspect = naturalW / naturalH;
-    const containerAspect = containerW / containerH;
-    let drawW, drawH, offsetX, offsetY;
-    if (imgAspect > containerAspect) {
-      drawW = containerW;
-      drawH = containerW / imgAspect;
-      offsetX = 0;
-      offsetY = (containerH - drawH) / 2;
-    } else {
-      drawH = containerH;
-      drawW = containerH * imgAspect;
-      offsetX = (containerW - drawW) / 2;
-      offsetY = 0;
+  _computeImageRenderArea(natW, natH, containerW, containerH) {
+    const imgRatio = natW / natH;
+    const containerRatio = containerW / containerH;
+    if (imgRatio > containerRatio) {
+      const renderedW = containerW;
+      const renderedH = containerW / imgRatio;
+      return { renderedW, renderedH, padLeft: 0, padTop: (containerH - renderedH) / 2 };
     }
-    return { offsetX, offsetY, drawW, drawH };
+    const renderedH = containerH;
+    const renderedW = containerH * imgRatio;
+    return { renderedW, renderedH, padLeft: (containerW - renderedW) / 2, padTop: 0 };
   }
 
   // ================================================================
@@ -184,46 +188,50 @@ export default class Canvas {
 
     this._segmentationInProgress = true;
 
-    const { offsetX, offsetY, drawW, drawH } = this._getContainedImageRect(imgEl, rect.width, rect.height);
-    const imgX = ((clientX - offsetX) / drawW) * imgEl.naturalWidth;
-    const imgY = ((clientY - offsetY) / drawH) * imgEl.naturalHeight;
+    const natW = imgEl.naturalWidth;
+    const natH = imgEl.naturalHeight;
+    const containerW = rect.width;
+    const containerH = rect.height;
 
-    if (imgX < 0 || imgX >= imgEl.naturalWidth || imgY < 0 || imgY >= imgEl.naturalHeight) {
-      this._handlePointSelectFallback(clientX, clientY, rect);
-      this._segmentationInProgress = false;
-      return;
-    }
+    const { renderedW, renderedH, padLeft, padTop } =
+      this._computeImageRenderArea(natW, natH, containerW, containerH);
+
+    const imgX = (clientX - padLeft) / renderedW * natW;
+    const imgY = (clientY - padTop) / renderedH * natH;
+    const cx = Math.max(0, Math.min(natW - 1, imgX));
+    const cy = Math.max(0, Math.min(natH - 1, imgY));
+
+    const progressToast = showToast('🔍 AI 正在识别点击区域…', 'warning', 15000);
 
     try {
-      const result = await this._segService.segmentAtPoint(imgDataUrl, imgX, imgY);
+      const result = await this._segService.segmentAtPoint(imgDataUrl, cx, cy);
+      dismissToast(progressToast);
+
       if (result) {
-        // 将 mask 坐标从 512×512 模型空间映射回 display 空间（考虑 letterboxing）
-        const maskW = 512;
-        const maskH = 512;
         const displayPoints = result.maskPoints.map(p => ({
-          x: offsetX + (p.x / maskW) * drawW,
-          y: offsetY + (p.y / maskH) * drawH,
+          x: p.x / result.maskWidth * renderedW + padLeft,
+          y: p.y / result.maskHeight * renderedH + padTop,
         }));
 
         this._selectionData = {
-          type: 'segmentation',
-          points: displayPoints,
-          classLabel: result.classLabel,
-          imageDataUrl: imgDataUrl,
-          canvasWidth: rect.width,
-          canvasHeight: rect.height,
-          imageWidth: imgEl.naturalWidth,
-          imageHeight: imgEl.naturalHeight,
-        };
+              type: 'segmentation',
+              points: displayPoints,
+              classLabel: result.classLabel,
+              imageDataUrl: imgDataUrl,
+              canvasWidth: rect.width,
+              canvasHeight: rect.height,
+              naturalWidth: imgEl.naturalWidth || rect.width,
+              naturalHeight: imgEl.naturalHeight || rect.height,
+            };
         this._showSegmentationPreview(displayPoints);
         this._showConfirmBar();
       } else {
-        // 分割失败 → 回退坐标点选
-        this._handlePointSelectFallback(clientX, clientY, rect);
+        showToast('⚠️ AI 未识别到区域，请尝试点击其他位置', 'warning', 4000);
       }
     } catch (err) {
+      dismissToast(progressToast);
       console.error('[Canvas] 分割推理失败:', err);
-      this._handlePointSelectFallback(clientX, clientY, rect);
+      showToast('⚠️ AI 分割失败: ' + (err.message || '未知错误'), 'error', 5000);
     } finally {
       this._segmentationInProgress = false;
     }
@@ -236,8 +244,8 @@ export default class Canvas {
       x: clientX, y: clientY,
       imageDataUrl: this._userImageDataUrl,
       canvasWidth: rect.width, canvasHeight: rect.height,
-      imageWidth: imgEl ? imgEl.naturalWidth : 512,
-      imageHeight: imgEl ? imgEl.naturalHeight : 512,
+      naturalWidth: imgEl?.naturalWidth || rect.width,
+      naturalHeight: imgEl?.naturalHeight || rect.height,
     };
     this._showSelMarker(clientX, clientY);
     this._showConfirmBar();
@@ -307,6 +315,9 @@ export default class Canvas {
   //  鼠标事件
   // ================================================================
   _onMouseDown(e) {
+    // 排除确认/取消按钮的点击冒泡，避免 _selectionData 被提前清空
+    if (e.target.closest('.canvas-confirm-btn')) return;
+
     if (!this._isShowingUserImage) return;
     const rect = this.canvasImg.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -326,6 +337,9 @@ export default class Canvas {
   }
 
   _onMouseMove(e) {
+    // 排除确认/取消按钮的悬停冒泡，防止意外触发绘制逻辑
+    if (e.target.closest('.canvas-confirm-btn')) return;
+
     if (this.tool === 'las' && this._isDrawing) {
       const rect = this.canvasImg.getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -346,7 +360,10 @@ export default class Canvas {
     }
   }
 
-  _onMouseUp(_e) {
+  _onMouseUp(e) {
+    // 排除确认/取消按钮的点击冒泡
+    if (e.target.closest('.canvas-confirm-btn')) return;
+
     if (this.tool !== 'las' || !this._isDrawing) return;
     this._isDrawing = false;
     this._svgOverlay.hideLassoClose();
@@ -358,14 +375,14 @@ export default class Canvas {
       return;
     }
     const rect = this.canvasImg.getBoundingClientRect();
-    const imgEl = this.canvasImg.querySelector('img');
+    const imgEl3 = this.canvasImg.querySelector('img');
     this._selectionData = {
       type: 'lasso',
       points: [...this._lassoPoints],
       imageDataUrl: this._userImageDataUrl,
       canvasWidth: rect.width, canvasHeight: rect.height,
-      imageWidth: imgEl ? imgEl.naturalWidth : 512,
-      imageHeight: imgEl ? imgEl.naturalHeight : 512,
+      naturalWidth: imgEl3?.naturalWidth || rect.width,
+      naturalHeight: imgEl3?.naturalHeight || rect.height,
     };
     this._showConfirmBar();
   }

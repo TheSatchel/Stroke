@@ -3,14 +3,29 @@
  */
 
 import { el } from '../utils/DOM.js';
+import { pinyin } from '../lib/pinyin-pro.mjs';
+
+function matchLabel(label, keywords) {
+  if (keywords.length === 0) return true;
+  const lowerLabel = label.toLowerCase();
+  const initials = pinyin(label, { toneType: 'none', pattern: 'first', type: 'array' }).join('').toLowerCase();
+  const fullPinyin = pinyin(label, { toneType: 'none', type: 'array' }).join('');
+  return keywords.every(kw =>
+    lowerLabel.includes(kw) ||
+    initials.includes(kw) ||
+    fullPinyin.includes(kw)
+  );
+}
 
 export default class HistoryPanel {
   constructor(container) {
     this.container = container;
     this.items = [];
+    this._searchQuery = '';
     this.onSelect = null;
     this.onVersionSwitch = null;
     this.onDelete = null;
+    this.onRename = null;
     this.render();
   }
 
@@ -31,24 +46,32 @@ export default class HistoryPanel {
     header.appendChild(newBtn);
     this.container.appendChild(header);
 
+    // 过滤列表
+    const keywords = this._searchQuery.split(/\s+/).filter(Boolean);
+    const filtered = keywords.length > 0
+      ? this.items.filter(item => matchLabel(item.label, keywords))
+      : this.items;
+
     this.listEl = el('div', 'history-list', { style: 'flex:1;overflow-y:auto;overflow-x:hidden;padding:8px;direction:rtl' });
     this.listWrap = el('div', '', { style: 'direction:ltr' });
     this.listEl.appendChild(this.listWrap);
-    if (this.items.length === 0) {
-      const emptyMsg = el('div', '', { text: '暂无历史版本', style: 'text-align:center;padding:20px 8px;font-size:12px;color:var(--color-text-tertiary)' });
+    if (filtered.length === 0) {
+      const emptyMsg = el('div', '', { text: this._searchQuery ? '无匹配结果' : '暂无历史版本', style: 'text-align:center;padding:20px 8px;font-size:12px;color:var(--color-text-tertiary)' });
       this.listWrap.appendChild(emptyMsg);
     }
-    this.items.forEach((item, i) => {
+    filtered.forEach((item, i) => {
       const div = el('div', 'hist-item' + (item.active ? ' active' : ''), {
         style: 'position:relative',
         onclick: () => this.select(i)
       });
 
       const thumb = el('div', 'hist-thumb', item.bg ? { style: 'background:' + item.bg } : {});
-      if (item.type === 'raster' && item.dataUrl) {
+      if (item.thumbnail) {
+        thumb.innerHTML = `<img src="${item.thumbnail}" />`;
+      } else if (item.type === 'raster' && item.dataUrl) {
         thumb.innerHTML = `<img src="${item.dataUrl}" />`;
-      } else {
-        thumb.innerHTML = `<svg viewBox="0 0 56 56" fill="none">${item.svg || ''}</svg>`;
+      } else if (item.svg) {
+        thumb.innerHTML = `<svg viewBox="0 0 56 56" fill="none">${item.svg}</svg>`;
       }
       if (item.current) {
         const badge = el('span', '', {
@@ -70,7 +93,12 @@ export default class HistoryPanel {
       div.appendChild(delBtn);
 
       const meta = el('div', 'hist-meta');
-      meta.appendChild(el('div', 'hist-label', { text: item.label }));
+      const labelEl = el('div', 'hist-label', { text: item.label, title: '双击重命名' });
+      labelEl.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        this._startRename(labelEl, i);
+      });
+      meta.appendChild(labelEl);
       meta.appendChild(el('div', 'hist-time', { text: item.time }));
 
       // 版本步进器
@@ -84,6 +112,46 @@ export default class HistoryPanel {
       this.listWrap.appendChild(div);
     });
     this.container.appendChild(this.listEl);
+
+    // 搜索栏（底部）
+    const searchWrap = el('div', 'hist-search-wrap');
+    const searchInput = el('input', 'hist-search-input', {
+      type: 'text',
+      placeholder: '搜索名称 (拼音/首字母, 空格分词)',
+      value: this._searchQuery
+    });
+    let _composing = false;
+    searchInput.addEventListener('compositionstart', () => { _composing = true; });
+    searchInput.addEventListener('compositionend', () => {
+      _composing = false;
+      this._searchQuery = searchInput.value.toLowerCase();
+      this.render();
+      const newInput = this.container.querySelector('.hist-search-input');
+      if (newInput) { newInput.focus(); newInput.setSelectionRange(newInput.value.length, newInput.value.length); }
+    });
+    searchInput.addEventListener('input', () => {
+      if (_composing) return;
+      this._searchQuery = searchInput.value.toLowerCase();
+      this.render();
+      const newInput = this.container.querySelector('.hist-search-input');
+      if (newInput) { newInput.focus(); newInput.setSelectionRange(newInput.value.length, newInput.value.length); }
+    });
+    searchWrap.appendChild(searchInput);
+    this.container.appendChild(searchWrap);
+  }
+
+  rebuildItems(lineages, currentLineageId) {
+    this.items = Object.entries(lineages)
+      .filter(([lid]) => lid !== 'lineage_0')
+      .map(([lid, l]) => ({
+        label: (l && l.name) || lid,
+        lineageId: lid,
+        ...(l && l.history || {}),
+        active: lid === currentLineageId,
+        current: lid === currentLineageId
+      }));
+    // 按 lineageId 排序（新的在前）
+    this.items.sort((a, b) => b.lineageId.localeCompare(a.lineageId));
   }
 
   select(i) {
@@ -200,13 +268,14 @@ export default class HistoryPanel {
       if (!itemEl) return;
       const thumb = itemEl.querySelector('.hist-thumb');
       if (!thumb) return;
-      if (item.type === 'raster' && item.dataUrl) {
+      const rasterSrc2 = item.thumbnail || item.dataUrl;
+      if (item.type === 'raster' && rasterSrc2) {
         // 光栅图：更新 <img> 标签
         const imgEl = thumb.querySelector('img');
         if (imgEl) {
-          imgEl.src = item.dataUrl;
+          imgEl.src = rasterSrc2;
         } else {
-          thumb.innerHTML = `<img src="${item.dataUrl}" />` + thumb.innerHTML;
+          thumb.innerHTML = `<img src="${rasterSrc2}" />` + thumb.innerHTML;
         }
       } else if (item.svg) {
         // SVG：替换 <svg> 元素
@@ -234,17 +303,20 @@ export default class HistoryPanel {
         item.versionCount = Math.max(item.versionCount, versionIndex + 1);
         item.time = timeStr;
         // 支持 ImageResult 对象和纯 SVG 字符串两种格式
-        if (imageResult && typeof imageResult === 'object' && imageResult.type === 'raster' && imageResult.dataUrl) {
+        if (imageResult && typeof imageResult === 'object' && imageResult.type === 'raster' && (imageResult.thumbnail || imageResult.dataUrl)) {
           item.type = 'raster';
-          item.dataUrl = imageResult.dataUrl;
+          item.thumbnail = imageResult.thumbnail || imageResult.dataUrl;
+          item.dataUrl = '';
           item.svg = '';
         } else if (imageResult && typeof imageResult === 'object' && imageResult.svg) {
           item.type = 'svg';
           item.svg = imageResult.svg;
+          item.thumbnail = '';
           item.dataUrl = '';
         } else if (typeof imageResult === 'string') {
           item.type = 'svg';
           item.svg = imageResult;
+          item.thumbnail = '';
           item.dataUrl = '';
         }
         this._refreshStepper();
@@ -261,5 +333,35 @@ export default class HistoryPanel {
     this.items.unshift(item);
     this.render();
     if (this.onSelect) this.onSelect(0);
+  }
+
+  _startRename(labelEl, itemIndex) {
+    const item = this.items[itemIndex];
+    if (!item) return;
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'hist-label-input';
+    input.value = item.label;
+    input.style.width = (labelEl.offsetWidth - 8) + 'px';
+
+    const commit = () => {
+      const newName = input.value.trim();
+      labelEl.textContent = newName || item.lineageId;
+      item.label = newName || item.lineageId;
+      if (this.onRename) this.onRename(itemIndex, newName);
+      input.remove();
+    };
+
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); commit(); }
+      if (e.key === 'Escape') { input.value = item.label; commit(); }
+    });
+
+    labelEl.textContent = '';
+    labelEl.appendChild(input);
+    input.focus();
+    input.select();
   }
 }

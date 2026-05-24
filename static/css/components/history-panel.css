@@ -9,6 +9,31 @@
   padding: 8px;
 }
 
+.hist-search-wrap {
+  padding: 6px 8px;
+}
+
+.hist-search-input {
+  width: 100%;
+  font-size: 11px;
+  padding: 4px 8px;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+  outline: none;
+  font-family: var(--font-sans);
+  box-sizing: border-box;
+}
+
+.hist-search-input::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.hist-search-input:focus {
+  border-color: var(--color-accent-ring);
+}
+
 .hist-item {
   border-radius: var(--border-radius-md);
   overflow: hidden;
@@ -63,6 +88,21 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: default;
+}
+
+.hist-label-input {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  background: var(--color-background-secondary);
+  border: 1px solid var(--color-accent-ring);
+  border-radius: 3px;
+  padding: 1px 4px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
 }
 
 .hist-time {

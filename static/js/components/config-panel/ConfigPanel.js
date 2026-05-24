@@ -13,6 +13,7 @@
 import { el, svgEl, iconSvg } from '../../utils/DOM.js';
 import { showToast } from '../../utils/Toast.js';
 import { widgetRegistry, tabsToPrompt, getGenerateCallSegments } from '../ConfigTabs.js';
+import { loadVersionBinary } from '../../locals/StorageManager.js';
 import DragManager from './DragManager.js';
 import TabEditModal from './TabEditModal.js';
 import TabContextMenu from './TabContextMenu.js';
@@ -29,6 +30,8 @@ export default class ConfigPanel {
     this.widgets = {};
     this.isCollapsed = false;
     this.generating = false;
+    this._dlLineageId = null;
+    this._dlVersionIndex = 0;
     this.onGenerate = null;
     this.onSettingsOpen = null;
     this.onConfigChange = null;   // 拖动/增删/修改后自动存入 lineage
@@ -274,6 +277,11 @@ export default class ConfigPanel {
     const def = this.tabsConfig.find(t => t.id === id);
     if (def && (def.id === 'prompt' || def.type === 'generate_call')) return;
 
+    // 如果是 region_prompt，通知 canvas 清理对应选区（统一入口）
+    if (def && def.type === 'region_prompt' && this._onRegionRemove && def.data?.label) {
+      this._onRegionRemove(def.data.label);
+    }
+
     delete this.widgets[id];
     this.tabsConfig = this.tabsConfig.filter(d => d.id !== id);
     const node = document.getElementById('sec-' + id);
@@ -317,16 +325,10 @@ export default class ConfigPanel {
     this._regionCount++;
     this.addCustomTab(def);
 
-    // 绑定删除 → 清理画布上对应选区
+    // 绑定删除 → removeTab 统一处理画布清理
     const entry = this.widgets[id];
     if (entry && entry.widget) {
-      entry.widget.onRemove(() => {
-        // 通过 App 回调来清理 canvas 选区
-        if (this._onRegionRemove) {
-          this._onRegionRemove(data.label);
-        }
-        this.removeTab(id);
-      });
+      entry.widget.onRemove(() => this.removeTab(id));
     }
   }
 
@@ -372,26 +374,57 @@ export default class ConfigPanel {
     this.exportBtn.style.display = '';
   }
 
-  /**
-   * 下载最后一个 generate_call widget 生成的结果图片
-   */
-  _downloadResult() {
-    const genCalls = Object.entries(this.widgets)
-      .filter(([_, entry]) => entry.def.type === 'generate_call')
-      .sort((a, b) => (a[1].def.order || 0) - (b[1].def.order || 0));
+  setDownloadLineage(lineageId, versionIndex) {
+    this._dlLineageId = lineageId;
+    this._dlVersionIndex = versionIndex;
+  }
 
-    const last = genCalls[genCalls.length - 1];
-    if (!last) {
-      showToast('没有可导出的结果', 'warning');
-      return;
+  showPostGen() {
+    this.generating = false;
+    this.genBtn.textContent = '重新生成';
+    this.genBtn.disabled = false;
+    this.exportBtn.style.display = '';
+  }
+
+  /**
+   * 下载当前 lineage 版本的全尺寸图片（优先 IndexedDB，fallback widget 缓存）
+   */
+  async _downloadResult() {
+    let dataUrl = '';
+    let svgRaw = '';
+
+    // 1) 尝试从 IndexedDB 加载完整二进制
+    if (this._dlLineageId) {
+      try {
+        const bin = await loadVersionBinary(this._dlLineageId, this._dlVersionIndex);
+        if (bin) {
+          dataUrl = bin.dataUrl || '';
+          svgRaw = bin.svg || '';
+        }
+      } catch (e) {
+        console.warn('[ConfigPanel] 从 IndexedDB 加载下载源失败:', e);
+      }
     }
 
-    const widget = last[1].widget;
-    const base64 = widget._resultBase64 || (typeof widget.getResultBase64 === 'function' ? widget.getResultBase64() : '');
-    const svgRaw = widget._svgOutput || (typeof widget.getSvgOutput === 'function' ? widget.getSvgOutput() : '');
+    // 2) fallback：从 widget 内存缓存取
+    if (!dataUrl && !svgRaw) {
+      const genCalls = Object.entries(this.widgets)
+        .filter(([_, entry]) => entry.def.type === 'generate_call')
+        .sort((a, b) => (a[1].def.order || 0) - (b[1].def.order || 0));
 
-    if (!base64 && !svgRaw) {
-      showToast('请先生成图片', 'warning');
+      const last = genCalls[genCalls.length - 1];
+      if (!last) {
+        showToast('没有可导出的结果', 'warning');
+        return;
+      }
+
+      const widget = last[1].widget;
+      dataUrl = widget._resultBase64 || (typeof widget.getResultBase64 === 'function' ? widget.getResultBase64() : '');
+      svgRaw = widget._svgOutput || (typeof widget.getSvgOutput === 'function' ? widget.getSvgOutput() : '');
+    }
+
+    if (!dataUrl && !svgRaw) {
+      showToast('没有可下载的图片数据', 'warning');
       return;
     }
 
@@ -404,12 +437,12 @@ export default class ConfigPanel {
       const blob = new Blob([svgRaw], { type: 'image/svg+xml' });
       downloadUrl = URL.createObjectURL(blob);
       needsRevoke = true;
-    } else if (base64) {
-      downloadUrl = base64;
-      if (base64.startsWith('data:image/svg+xml')) ext = 'svg';
-      else if (base64.startsWith('data:image/jpeg') || base64.startsWith('data:image/jpg')) ext = 'jpg';
-      else if (base64.startsWith('data:image/webp')) ext = 'webp';
-      else if (base64.startsWith('data:image/png')) ext = 'png';
+    } else if (dataUrl) {
+      downloadUrl = dataUrl;
+      if (dataUrl.startsWith('data:image/svg+xml')) ext = 'svg';
+      else if (dataUrl.startsWith('data:image/jpeg') || dataUrl.startsWith('data:image/jpg')) ext = 'jpg';
+      else if (dataUrl.startsWith('data:image/webp')) ext = 'webp';
+      else if (dataUrl.startsWith('data:image/png')) ext = 'png';
     } else {
       showToast('没有可下载的图片数据', 'warning');
       return;
@@ -423,7 +456,7 @@ export default class ConfigPanel {
     document.body.removeChild(a);
 
     if (needsRevoke) {
-      URL.revokeObjectURL(downloadUrl);
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 100);
     }
 
     showToast(`图片已导出为 ${a.download}`, 'success', 3000);

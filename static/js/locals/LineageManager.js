@@ -16,9 +16,9 @@ import {
   saveVersionBinary,
   loadVersionBinary,
   deleteLineageBinary,
-  saveLineagesMeta,
-  saveFingerprints
+  saveLineages
 } from './StorageManager.js';
+import Lineage from './Lineage.js';
 
 /**
  * @typedef {Object} LineageVersion
@@ -42,14 +42,10 @@ import {
 export default class LineageManager {
   /**
    * @param {Object<string, Lineage>} lineages - 引用 App.versionLineages
-   * @param {Object<string, string>} fingerprints - 引用 App.configFingerprints ({ contentFp: lineageId })
    */
-  constructor(lineages, fingerprints) {
+  constructor(lineages) {
     /** @type {Object<string, Lineage>} */
     this.lineages = lineages;
-
-    /** @type {Object<string, string>} */
-    this.fingerprints = fingerprints;
 
     /** @type {number} 最大保留 lineage 数量 */
     this.maxLineages = 50;
@@ -66,22 +62,23 @@ export default class LineageManager {
    * @returns {{ lineageId: string, isNew: boolean }}
    */
   matchOrCreate(contentFp, initialData = {}) {
-    // 1. 精确匹配内容指纹
-    const existingId = this.fingerprints[contentFp];
-    if (existingId && this.lineages[existingId]) {
-      return { lineageId: existingId, isNew: false };
+    // 1. 遍历匹配已有 lineage 的 fingerprint（跳过 lineage_0）
+    for (const [lid, l] of Object.entries(this.lineages)) {
+      if (lid === 'lineage_0') continue;
+      if (l.fingerprint === contentFp) {
+        return { lineageId: lid, isNew: false };
+      }
     }
 
-    // 2. 创建新的 lineage
+    // 2. 创建新的 lineage（实例化，确保方法可用）
     const lineageId = 'lineage_' + Date.now();
-    this.lineages[lineageId] = {
+    this.lineages[lineageId] = new Lineage({
       fingerprint: contentFp,
       versions: [],
       tabValues: initialData.tabValues || {},
       tabsConfig: initialData.tabsConfig || [],
       tabOrder: initialData.tabOrder || []
-    };
-    this.fingerprints[contentFp] = lineageId;
+    });
 
     return { lineageId, isNew: true };
   }
@@ -190,21 +187,11 @@ export default class LineageManager {
    * @returns {Promise<void>}
    */
   async deleteLineage(lineageId) {
-    // 1. 移除指纹映射
-    const lineage = this.lineages[lineageId];
-    if (lineage && lineage.fingerprint) {
-      for (const [fp, lid] of Object.entries(this.fingerprints)) {
-        if (lid === lineageId) {
-          delete this.fingerprints[fp];
-          break;
-        }
-      }
-    }
-
-    // 2. 移除 lineage 数据
+    if (lineageId === 'lineage_0') return;
+    // 1. 移除 lineage 数据
     delete this.lineages[lineageId];
 
-    // 3. 删除 IndexedDB 中的二进制数据
+    // 2. 删除 IndexedDB 中的二进制数据
     await deleteLineageBinary(lineageId);
   }
 
@@ -220,7 +207,7 @@ export default class LineageManager {
 
     // 按第一个版本的创建时间排序（从 lineageId 的 Date.now() 推导）
     const sorted = ids
-      .filter(id => id !== activeLineageId)
+      .filter(id => id !== activeLineageId && id !== 'lineage_0')
       .sort((a, b) => {
         const timeA = parseInt(a.replace('lineage_', '')) || 0;
         const timeB = parseInt(b.replace('lineage_', '')) || 0;
@@ -240,7 +227,6 @@ export default class LineageManager {
    * 持久化元数据到 localStorage
    */
   persistMeta() {
-    saveLineagesMeta(this.lineages);
-    saveFingerprints(this.fingerprints);
+    saveLineages(this.lineages);
   }
 }

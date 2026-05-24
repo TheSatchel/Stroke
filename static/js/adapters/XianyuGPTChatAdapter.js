@@ -1,14 +1,14 @@
 /**
- * XianyuGeminiAdapter.js — 咸鱼 API Gemini 生成器
+ * XianyuGPTChatAdapter.js — 咸鱼 API Gemini 生成器
  *
  * 使用 chat/completions 端点，支持 bad_response_status_code 时自动 fallback
  * 到用户在 SettingsModal 中选定的备用模型。
  */
 
-import { GPTChatAdapter } from './GeminiAdapter.js';
+import { GPTChatAdapter } from './GPTChatAdapter.js';
 import { showToast } from '../utils/Toast.js';
 
-export class XianyuGeminiAdapter extends GPTChatAdapter {
+export class XianyuGPTChatAdapter extends GPTChatAdapter {
   static get id() { return 'xianyu-gemini'; }
   static get label() { return '咸鱼 API (Gemini)'; }
   static get defaultModel() { return 'gemini-3.0-pro-image'; }
@@ -26,6 +26,8 @@ export class XianyuGeminiAdapter extends GPTChatAdapter {
    * 这些参数会动态渲染到 SettingsModal 中
    */
   static get configParams() {
+    // 继承父级（GPTChatAdapter）的参数：temperature, top_p, max_tokens, mask_mode 等
+    const base = super.configParams || [];
     return [
       {
         name: 'group',
@@ -34,30 +36,7 @@ export class XianyuGeminiAdapter extends GPTChatAdapter {
         defaultValue: 'allvip',
         placeholder: '用户组标识'
       },
-      {
-        name: 'temperature',
-        label: 'Temperature',
-        type: 'slider',
-        defaultValue: 0.7,
-        min: 0,
-        max: 2,
-        step: 0.1,
-        leftLabel: '0',
-        rightLabel: '2',
-        unit: ''
-      },
-      {
-        name: 'top_p',
-        label: 'Top P',
-        type: 'slider',
-        defaultValue: 0.9,
-        min: 0,
-        max: 1,
-        step: 0.05,
-        leftLabel: '0',
-        rightLabel: '1',
-        unit: ''
-      }
+      ...base
     ];
   }
 

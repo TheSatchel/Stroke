@@ -3,35 +3,38 @@
  * 将 App 状态序列化到 localStorage 或从中恢复。
  */
 
-import { saveAll as storageSaveAll, loadAll as storageLoadAll, clearHistory, loadTabsConfigFull } from './storage.js';
-import { deleteLineageBinary, clearAllBinaries } from './StorageManager.js';
+import { saveAll as storageSaveAll, loadAll as storageLoadAll, clearHistory, getJSON, KEYS, safeRemove } from './storage.js';
+import { deleteLineageBinary, clearAllBinaries, saveLineages, loadLineages, loadVersionBinary } from './StorageManager.js';
 import { defaultConfigTabs } from '../components/ConfigTabs.js';
+import Lineage from './Lineage.js';
 
-export const HIDDEN_LINEAGE_ID = '__default__';
+export const TEMPLATE_LINEAGE_ID = 'lineage_0';
 
-function createDefaultLineage() {
-  return {
-    versions: [],
+function createTemplateLineage() {
+  return new Lineage({
+    fingerprint: '',
+    tabValues: {},
     tabsConfig: defaultConfigTabs.map(t => ({ ...t, options: Array.isArray(t.options) ? [...t.options] : t.options })),
     tabOrder: defaultConfigTabs.map(t => t.id),
-    tabValues: {}
-  };
+    versions: [],
+    history: { time: '', versionCount: 0, versionActive: 0, type: 'svg', svg: '', thumbnail: '' }
+  });
 }
 
-function ensureHiddenLineage(app) {
-  if (!app.versionLineages[HIDDEN_LINEAGE_ID]) {
-    app.versionLineages[HIDDEN_LINEAGE_ID] = createDefaultLineage();
+function ensureTemplateLineage(lineages) {
+  if (!lineages[TEMPLATE_LINEAGE_ID]) {
+    lineages[TEMPLATE_LINEAGE_ID] = createTemplateLineage();
   }
 }
 
-function migrateOldGlobalToHiddenLineage(app) {
+function migrateOldGlobalToTemplateLineage(app) {
   try {
-    const old = loadTabsConfigFull();
+    const old = getJSON(KEYS.tabsConfigFull, null);
     if (!old || !Array.isArray(old) || old.length === 0) return;
-    ensureHiddenLineage(app);
-    app.versionLineages[HIDDEN_LINEAGE_ID].tabsConfig = old.map(t => ({ ...t, options: Array.isArray(t.options) ? [...t.options] : t.options }));
-    app.versionLineages[HIDDEN_LINEAGE_ID].tabOrder = old.map(t => t.id);
-    localStorage.removeItem('stroke_tabs_config_full');
+    ensureTemplateLineage(app.versionLineages);
+    app.versionLineages[TEMPLATE_LINEAGE_ID].tabsConfig = old.map(t => ({ ...t, options: Array.isArray(t.options) ? [...t.options] : t.options }));
+    app.versionLineages[TEMPLATE_LINEAGE_ID].tabOrder = old.map(t => t.id);
+    safeRemove(KEYS.tabsConfigFull);
   } catch (e) { /* ignore */ }
 }
 
@@ -40,24 +43,19 @@ function migrateOldGlobalToHiddenLineage(app) {
  * @param {import('../uis/App.js').default} app
  */
 export function saveAppState(app) {
-  const targetId = app.currentLineageId || HIDDEN_LINEAGE_ID;
+  const targetId = app.currentLineageId || TEMPLATE_LINEAGE_ID;
   saveSettingsBarToLineage(app, targetId);
 
   storageSaveAll({
-    historyItems: app.history.items,
-    lineages: app.versionLineages,
-    fingerprints: app.configFingerprints,
     currentLineageId: app.currentLineageId,
     currentVersionIndex: app.currentVersionIndex,
     customTabs: app.config.tabsConfig.filter(t => t.id.startsWith('custom_')),
     tabOrder: app.config.tabsConfig.map(t => t.id),
-    tabValues: app.config.getTabValues(),
-    apiValues: app.settings.getValues ? app.settings.getValues() : null,
-    generatorState: {
-      provider: app.generator.activeId,
-      model: app.generator.activeConfig.model || '',
-      apiKey: app.generator.activeConfig.apiKey || ''
-    }
+    apiValues: app.settings.getValues ? app.settings.getValues() : null
+  });
+
+  saveLineages(app.versionLineages).catch(e => {
+    console.warn('[Persistence] saveLineages 失败:', e);
   });
 }
 
@@ -73,7 +71,7 @@ export function saveAppState(app) {
 export function saveSettingsBarToLineage(app, lineageId) {
   const lid = lineageId || app.currentLineageId;
   if (!lid) return;
-  if (!app.versionLineages[lid]) app.versionLineages[lid] = createDefaultLineage();
+  if (!app.versionLineages[lid]) app.versionLineages[lid] = createTemplateLineage();
   const lineage = app.versionLineages[lid];
 
   const tabsToSave = app.config.tabsConfig.filter(tab => tab.unpersist !== true);
@@ -131,31 +129,39 @@ export function loadSettingsBarFromLineage(app, lineageId) {
  * 从 localStorage 恢复 App 状态
  * @param {import('../uis/App.js').default} app
  */
-export function loadAppState(app) {
+export async function loadAppState(app) {
+  // 1. 先尝试从 IDB 加载
+  let lineages = await loadLineages();
+
+  ensureTemplateLineage(lineages);
+  app.versionLineages = lineages;
+  if (app._lineageManager) app._lineageManager.lineages = lineages;
+
   const saved = storageLoadAll();
-  if (saved.historyItems?.length) app.history.items = saved.historyItems;
-  if (saved.lineages) app.versionLineages = saved.lineages;
-  if (saved.fingerprints) app.configFingerprints = saved.fingerprints;
   app.currentLineageId = saved.currentLineageId || null;
   app.currentVersionIndex = saved.currentVersionIndex || 0;
 
-  migrateOldGlobalToHiddenLineage(app);
-  ensureHiddenLineage(app);
+  migrateOldGlobalToTemplateLineage(app);
 
-  const sourceId = (app.currentLineageId && app.versionLineages[app.currentLineageId]) ? app.currentLineageId : HIDDEN_LINEAGE_ID;
+  const sourceId = (app.currentLineageId && app.versionLineages[app.currentLineageId]) ? app.currentLineageId : TEMPLATE_LINEAGE_ID;
   if (!loadSettingsBarFromLineage(app, sourceId)) {
     app.config.tabsConfig = defaultConfigTabs.map(t => ({ ...t, options: Array.isArray(t.options) ? [...t.options] : t.options }));
     app.config.render();
-    saveSettingsBarToLineage(app, HIDDEN_LINEAGE_ID);
+    saveSettingsBarToLineage(app, TEMPLATE_LINEAGE_ID);
   }
 
   if (saved.apiValues && app.settings.restoreValues) app.settings.restoreValues(saved.apiValues);
-  if (saved.generatorState?.provider) app.generator.use(saved.generatorState.provider, { model: saved.generatorState.model || '' });
 
+  app._rebuildHistoryItems();
   app.history.render();
   if (app.currentLineageId && app.versionLineages[app.currentLineageId]) {
-    const v = app.versionLineages[app.currentLineageId].versions[app.currentVersionIndex];
-    if (v) setTimeout(() => app.canvas.loadVersion(v), 100);
+    const lineage = app.versionLineages[app.currentLineageId];
+    const vIdx = app.currentVersionIndex;
+    // 懒水合当前版本
+    lineage.hydrateVersion(vIdx, loadVersionBinary, app.currentLineageId).then(() => {
+      const v = lineage.getVersion(vIdx);
+      if (v) app.canvas.loadVersion(v);
+    });
   }
 }
 
@@ -169,12 +175,7 @@ export function deleteHistoryItem(app, index) {
   if (index < 0 || index >= items.length) return;
   const item = items[index];
   const lineageId = item.lineageId;
-  if (lineageId && app.versionLineages[lineageId]) {
-    Object.keys(app.configFingerprints).forEach(fp => {
-      if (app.configFingerprints[fp] === lineageId) {
-        delete app.configFingerprints[fp];
-      }
-    });
+  if (lineageId && app.versionLineages[lineageId] && lineageId !== TEMPLATE_LINEAGE_ID) {
     delete app.versionLineages[lineageId];
 
     // 异步清理 IndexedDB 中的二进制数据
@@ -184,15 +185,14 @@ export function deleteHistoryItem(app, index) {
   }
   items.splice(index, 1);
   if (app.currentLineageId === lineageId) {
-    app.currentLineageId = null;
+    app.currentLineageId = TEMPLATE_LINEAGE_ID;
     app.currentVersionIndex = 0;
-    // Clear canvas when deleting the currently-viewed history item
     app.canvas.clear();
-    // Also remove canvas_ref_image widget if present
     const refEntry = app.config.widgets['canvas_ref_image'];
     if (refEntry) {
       app.config.removeTab('canvas_ref_image');
     }
+    loadSettingsBarFromLineage(app, TEMPLATE_LINEAGE_ID);
   }
   app.history.render();
   saveAppState(app);
@@ -204,17 +204,26 @@ export function deleteHistoryItem(app, index) {
  */
 export function deleteAllHistory(app) {
   app.history.items = [];
+  // Keep lineage_0, remove all others
+  const template = app.versionLineages[TEMPLATE_LINEAGE_ID] || createTemplateLineage();
   app.versionLineages = {};
-  app.configFingerprints = {};
-  app.currentLineageId = null;
+  app.versionLineages[TEMPLATE_LINEAGE_ID] = template;
+  if (app._lineageManager) app._lineageManager.lineages = app.versionLineages;
+  app.currentLineageId = TEMPLATE_LINEAGE_ID;
   app.currentVersionIndex = 0;
   app.history.render();
   clearHistory();
 
-  // 异步清理所有 IndexedDB 二进制数据
+  // Step 1: 清空所有 IDB 二进制数据（含 app_state 和所有版本二进制）
   clearAllBinaries().catch(e => {
     console.warn('[Persistence] 清空 IDB 失败:', e);
   });
 
+  // Step 2: 重新写入仅含 lineage_0 的最小 app_state
+  saveLineages(app.versionLineages).catch(e => {
+    console.warn('[Persistence] 重新保存 app_state 失败:', e);
+  });
+
+  // Step 3: 更新 LS 指针
   saveAppState(app);
 }
