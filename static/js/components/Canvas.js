@@ -128,6 +128,27 @@ export default class Canvas {
   }
   _hideSelMarker() { this._selMarker.style.display = 'none'; }
 
+  _getContainedImageRect(imgEl, containerW, containerH) {
+    const naturalW = imgEl.naturalWidth;
+    const naturalH = imgEl.naturalHeight;
+    if (!naturalW || !naturalH) return { offsetX: 0, offsetY: 0, drawW: containerW, drawH: containerH };
+    const imgAspect = naturalW / naturalH;
+    const containerAspect = containerW / containerH;
+    let drawW, drawH, offsetX, offsetY;
+    if (imgAspect > containerAspect) {
+      drawW = containerW;
+      drawH = containerW / imgAspect;
+      offsetX = 0;
+      offsetY = (containerH - drawH) / 2;
+    } else {
+      drawH = containerH;
+      drawW = containerH * imgAspect;
+      offsetX = (containerW - drawW) / 2;
+      offsetY = 0;
+    }
+    return { offsetX, offsetY, drawW, drawH };
+  }
+
   // ================================================================
   //  AI 分割点选处理
   // ================================================================
@@ -163,22 +184,25 @@ export default class Canvas {
 
     this._segmentationInProgress = true;
 
-    const scaleX = imgEl.naturalWidth / imgEl.clientWidth;
-    const scaleY = imgEl.naturalHeight / imgEl.clientHeight;
-    const imgX = clientX * scaleX;
-    const imgY = clientY * scaleY;
+    const { offsetX, offsetY, drawW, drawH } = this._getContainedImageRect(imgEl, rect.width, rect.height);
+    const imgX = ((clientX - offsetX) / drawW) * imgEl.naturalWidth;
+    const imgY = ((clientY - offsetY) / drawH) * imgEl.naturalHeight;
+
+    if (imgX < 0 || imgX >= imgEl.naturalWidth || imgY < 0 || imgY >= imgEl.naturalHeight) {
+      this._handlePointSelectFallback(clientX, clientY, rect);
+      this._segmentationInProgress = false;
+      return;
+    }
 
     try {
       const result = await this._segService.segmentAtPoint(imgDataUrl, imgX, imgY);
       if (result) {
-        // 将 mask 坐标从 512×512 模型空间映射回 canvas 显示空间
+        // 将 mask 坐标从 512×512 模型空间映射回 display 空间（考虑 letterboxing）
         const maskW = 512;
         const maskH = 512;
-        const invScaleX = imgEl.clientWidth / maskW;
-        const invScaleY = imgEl.clientHeight / maskH;
         const displayPoints = result.maskPoints.map(p => ({
-          x: p.x * invScaleX,
-          y: p.y * invScaleY,
+          x: offsetX + (p.x / maskW) * drawW,
+          y: offsetY + (p.y / maskH) * drawH,
         }));
 
         this._selectionData = {
@@ -188,6 +212,8 @@ export default class Canvas {
           imageDataUrl: imgDataUrl,
           canvasWidth: rect.width,
           canvasHeight: rect.height,
+          imageWidth: imgEl.naturalWidth,
+          imageHeight: imgEl.naturalHeight,
         };
         this._showSegmentationPreview(displayPoints);
         this._showConfirmBar();
@@ -204,11 +230,14 @@ export default class Canvas {
   }
 
   _handlePointSelectFallback(clientX, clientY, rect) {
+    const imgEl = this.canvasImg.querySelector('img');
     this._selectionData = {
       type: 'point',
       x: clientX, y: clientY,
       imageDataUrl: this._userImageDataUrl,
       canvasWidth: rect.width, canvasHeight: rect.height,
+      imageWidth: imgEl ? imgEl.naturalWidth : 512,
+      imageHeight: imgEl ? imgEl.naturalHeight : 512,
     };
     this._showSelMarker(clientX, clientY);
     this._showConfirmBar();
@@ -329,11 +358,14 @@ export default class Canvas {
       return;
     }
     const rect = this.canvasImg.getBoundingClientRect();
+    const imgEl = this.canvasImg.querySelector('img');
     this._selectionData = {
       type: 'lasso',
       points: [...this._lassoPoints],
       imageDataUrl: this._userImageDataUrl,
-      canvasWidth: rect.width, canvasHeight: rect.height
+      canvasWidth: rect.width, canvasHeight: rect.height,
+      imageWidth: imgEl ? imgEl.naturalWidth : 512,
+      imageHeight: imgEl ? imgEl.naturalHeight : 512,
     };
     this._showConfirmBar();
   }
