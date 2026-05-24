@@ -340,19 +340,6 @@ export default class SegmentationService {
     const pixelCount = queue.length;
     if (pixelCount === 0) return [];
 
-    const areaRatio = pixelCount / (width * height);
-    if (areaRatio >= 0.25) {
-      const margin = 32;
-      const rminX = Math.max(0, seedX - margin);
-      const rminY = Math.max(0, seedY - margin);
-      const rmaxX = Math.min(width - 1, seedX + margin);
-      const rmaxY = Math.min(height - 1, seedY + margin);
-      return [
-        { x: rminX, y: rminY }, { x: rmaxX, y: rminY },
-        { x: rmaxX, y: rmaxY }, { x: rminX, y: rmaxY },
-      ];
-    }
-
     const cx = (minX + maxX) / 2;
     const cy = (minY + maxY) / 2;
     const numSteps = 72;
