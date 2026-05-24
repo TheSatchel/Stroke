@@ -59,8 +59,10 @@ export default class RegionPromptWidget {
     this.type = config.data?.type || 'point';
     this.canvasWidth = config.data?.canvasWidth || 512;
     this.canvasHeight = config.data?.canvasHeight || 512;
+    this._imageWidth = config.data?.imageWidth || 0;
+    this._imageHeight = config.data?.imageHeight || 0;
     this._onChange = null;
-    this._onRemove = null; // 被移除时的回调
+    this._onRemove = null;
     this.render();
   }
 
@@ -117,7 +119,7 @@ export default class RegionPromptWidget {
       }
     });
     this.textareaEl.style.cssText =
-      'width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:var(--color-input-bg);color:var(--color-text);font-size:12px;resize:vertical;' +
+      'width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:var(--color-input-bg);color:var(--color-text);font-size:12px;font-family:var(--font-sans);line-height:1.5;resize:vertical;' +
       'min-height:56px;';
     body.appendChild(this.textareaEl);
 
@@ -146,35 +148,53 @@ export default class RegionPromptWidget {
     canvas.height = displayHeight;
     const ctx = canvas.getContext('2d');
 
-    // 缩放比例：从 canvas 容器坐标系 → 当前显示坐标系
-    const scaleX = displayWidth / this.canvasWidth;
-    const scaleY = displayHeight / this.canvasHeight;
+    // 计算原画布容器内图像的实际绘制区域 (object-fit:contain letterboxing)
+    const imgW = this._imageWidth || img.naturalWidth || 512;
+    const imgH = this._imageHeight || img.naturalHeight || 512;
+    const imgAspect = imgW / imgH;
+    const canvasAspect = this.canvasWidth / this.canvasHeight;
+    let canvasDrawW, canvasDrawH, canvasOffsetX, canvasOffsetY;
+    if (imgAspect > canvasAspect) {
+      canvasDrawW = this.canvasWidth;
+      canvasDrawH = this.canvasWidth / imgAspect;
+      canvasOffsetX = 0;
+      canvasOffsetY = (this.canvasHeight - canvasDrawH) / 2;
+    } else {
+      canvasDrawH = this.canvasHeight;
+      canvasDrawW = this.canvasHeight * imgAspect;
+      canvasOffsetX = (this.canvasWidth - canvasDrawW) / 2;
+      canvasOffsetY = 0;
+    }
+
+    const scaleX = displayWidth / canvasDrawW;
+    const scaleY = displayHeight / canvasDrawH;
+    const offsetPX = -canvasOffsetX * scaleX;
+    const offsetPY = -canvasOffsetY * scaleY;
 
     if (this.type === 'point') {
-      // 圆形区域（以点为中心，半径 30px 缩放）
-      const cx = (this._pointX ?? this.points[0]?.x ?? 0) * scaleX;
-      const cy = (this._pointY ?? this.points[0]?.y ?? 0) * scaleY;
+      const px = (this._pointX ?? this.points[0]?.x ?? 0);
+      const py = (this._pointY ?? this.points[0]?.y ?? 0);
+      const cx = px * scaleX + offsetPX;
+      const cy = py * scaleY + offsetPY;
       const r = 30 * Math.min(scaleX, scaleY);
 
       ctx.beginPath();
       ctx.arc(cx, cy, Math.max(r, 8), 0, Math.PI * 2);
       ctx.closePath();
-      ctx.fillStyle = this.color + '59'; // alpha ~0.35
+      ctx.fillStyle = this.color + '59';
       ctx.fill();
       ctx.strokeStyle = this.color;
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      // 左上角标签
       this._drawLabel(ctx, this.label);
 
     } else if ((this.type === 'lasso' || this.type === 'segmentation') && this.points.length >= 3) {
-      // 多边形
       ctx.beginPath();
       const p0 = this.points[0];
-      ctx.moveTo(p0.x * scaleX, p0.y * scaleY);
+      ctx.moveTo(p0.x * scaleX + offsetPX, p0.y * scaleY + offsetPY);
       for (let i = 1; i < this.points.length; i++) {
-        ctx.lineTo(this.points[i].x * scaleX, this.points[i].y * scaleY);
+        ctx.lineTo(this.points[i].x * scaleX + offsetPX, this.points[i].y * scaleY + offsetPY);
       }
       ctx.closePath();
       ctx.fillStyle = this.color + '59';
@@ -183,7 +203,6 @@ export default class RegionPromptWidget {
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      // 左上角标签
       this._drawLabel(ctx, this.label);
     }
   }
@@ -274,14 +293,26 @@ export default class RegionPromptWidget {
    * @returns {string} data:image/png;base64,...
    */
   getMaskDataUrl(outputWidth = 1024, outputHeight = 1024) {
-    const pts = this.points && this.points.length >= 3 ? this.points : (this._pointX != null ? [{ x: this._pointX, y: this._pointY }] : []);
+    const pts = this._getNormalizedPoints();
     return generateMaskDataUrl(
       pts,
       this.canvasWidth,
       this.canvasHeight,
       outputWidth,
-      outputHeight
+      outputHeight,
+      this._imageWidth || 512,
+      this._imageHeight || 512
     );
+  }
+
+  _getNormalizedPoints() {
+    if (this.points && this.points.length >= 3) {
+      return this.points;
+    }
+    if (this._pointX != null) {
+      return [{ x: this._pointX, y: this._pointY }];
+    }
+    return [];
   }
 
   /**
