@@ -29,6 +29,7 @@ export default class LassoHandler {
     this._lassoPoints = [];
     this._isDrawing = false;
     this._lastSampleTime = 0;
+    this._canvas._svgOverlay.clearLassoContext();
   }
 
   /**
@@ -38,11 +39,18 @@ export default class LassoHandler {
    */
   onMouseDown(x, y) {
     const canvas = this._canvas;
-    this._isDrawing = true;
     canvas._selManager.clearActiveSelection();
     this._lassoPoints = [{ x, y }];
     this._lastSampleTime = Date.now();
+    this._isDrawing = true;
     canvas._svgOverlay.hideLassoClose();
+
+    const rect = canvas.canvasImg.getBoundingClientRect();
+    const imgEl = canvas.canvasImg.querySelector('img');
+    const natW = imgEl?.naturalWidth || rect.width;
+    const natH = imgEl?.naturalHeight || rect.height;
+    canvas._svgOverlay.storeLassoContext(rect.width, rect.height, natW, natH);
+
     canvas._svgOverlay.updateLassoPath(this._lassoPoints);
   }
 
@@ -60,6 +68,7 @@ export default class LassoHandler {
     if (Math.sqrt(dx*dx + dy*dy) > 3 || now - this._lastSampleTime > 30) {
       this._lassoPoints.push({ x, y });
       this._lastSampleTime = now;
+      this._canvas._svgOverlay.storeLassoPoints(this._lassoPoints);
       this._canvas._svgOverlay.updateLassoPath(this._lassoPoints);
     }
     if (this._lassoPoints.length >= 1) {
@@ -80,10 +89,12 @@ export default class LassoHandler {
     }
     if (this._lassoPoints.length < 5 || this._calcPathLength() < 20) {
       this._canvas._selManager.clearActiveSelection();
+      this._canvas._svgOverlay.clearLassoContext();
       return;
     }
     const rect = this._canvas.canvasImg.getBoundingClientRect();
     const imgEl = this._canvas.canvasImg.querySelector('img');
+    this._canvas._svgOverlay.storeLassoPoints(this._lassoPoints);
     this._canvas._selManager.selectionData = {
       type: 'lasso',
       points: [...this._lassoPoints],

@@ -11,6 +11,7 @@ export default class SegmentationHandler {
    */
   constructor(canvas) {
     this._canvas = canvas;
+    this._previewContext = null;
   }
 
   /**
@@ -82,6 +83,17 @@ export default class SegmentationHandler {
           y: p.y / result.maskHeight * renderedH + padTop,
         }));
 
+        this._previewContext = {
+          maskPoints: result.maskPoints,
+          maskWidth: result.maskWidth,
+          maskHeight: result.maskHeight,
+          containerWidth: rect.width,
+          containerHeight: rect.height,
+          natW: imgEl.naturalWidth || rect.width,
+          natH: imgEl.naturalHeight || rect.height,
+          color: '#3B82F6',
+        };
+
         canvas._selManager.selectionData = {
           type: 'segmentation',
           points: displayPoints,
@@ -125,6 +137,25 @@ export default class SegmentationHandler {
     };
     canvas._selManager.showSelMarker(clientX, clientY, rect);
     canvas._selManager.showConfirmBar();
+  }
+
+  clearPreviewContext() {
+    this._previewContext = null;
+  }
+
+  refreshPreview() {
+    if (!this._previewContext) return;
+    const ctx = this._previewContext;
+    const canvas = this._canvas;
+    const currW = canvas.canvasImg.clientWidth;
+    const currH = canvas.canvasImg.clientHeight;
+    const imgMgr = canvas._imageManager;
+    const area = imgMgr.computeImageRenderArea(ctx.natW || 1, ctx.natH || 1, currW, currH);
+    const displayPoints = ctx.maskPoints.map(p => ({
+      x: p.x / ctx.maskWidth * area.renderedW + area.padLeft,
+      y: p.y / ctx.maskHeight * area.renderedH + area.padTop,
+    }));
+    this.showSegmentationPreview(displayPoints, ctx.color);
   }
 
   /**

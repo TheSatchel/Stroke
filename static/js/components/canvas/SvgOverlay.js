@@ -18,6 +18,7 @@ export default class SvgOverlay {
     this.svgParent = svgParent;
     this.svg = this._createSvg();
     this._selections = {};
+    this._lassoContext = null;
   }
 
   // ================================================================
@@ -85,6 +86,39 @@ export default class SvgOverlay {
 
   setLassoStrokeDash(style) {
     this._lassoPath.setAttribute('stroke-dasharray', style);
+  }
+
+  storeLassoContext(containerW, containerH, natW, natH) {
+    this._lassoContext = { containerW, containerH, natW, natH };
+  }
+
+  storeLassoPoints(points) {
+    this._lassoRawPoints = points ? [...points] : null;
+  }
+
+  clearLassoContext() {
+    this._lassoContext = null;
+    this._lassoRawPoints = null;
+  }
+
+  refreshLassoPath() {
+    if (!this._lassoContext || !this._lassoRawPoints || this._lassoRawPoints.length < 1) return;
+    const ctx = this._lassoContext;
+    const currW = this.svgParent.clientWidth;
+    const currH = this.svgParent.clientHeight;
+    const origArea = this._computeRenderArea(ctx.natW || 1, ctx.natH || 1, ctx.containerW || 1, ctx.containerH || 1);
+    const currArea = this._computeRenderArea(ctx.natW || 1, ctx.natH || 1, currW, currH);
+    const scaled = this._lassoRawPoints.map(p => this._toDisplayCoords(p.x, p.y, origArea, currArea));
+    let d = 'M ' + scaled[0].x + ' ' + scaled[0].y;
+    for (let i = 1; i < scaled.length; i++) {
+      d += ' L ' + scaled[i].x + ' ' + scaled[i].y;
+    }
+    this._lassoPath.setAttribute('d', d);
+    if (scaled.length >= 1) {
+      const last = scaled[scaled.length - 1];
+      const first = scaled[0];
+      this.setLassoClose(last.x, last.y, first.x, first.y);
+    }
   }
 
   // ================================================================

@@ -99,7 +99,12 @@ export default class Canvas {
     this.container.appendChild(this._toolManager.buildToolbar());
 
     this._resizeObserver = new ResizeObserver(() => {
-      if (this._svgOverlay) this._svgOverlay.refreshAllSelections();
+      if (this._svgOverlay) {
+        this._svgOverlay.refreshAllSelections();
+        this._svgOverlay.refreshLassoPath();
+      }
+      if (this._selManager) this._selManager.refreshMarker();
+      if (this._segHandler) this._segHandler.refreshPreview();
     });
     this._resizeObserver.observe(this.canvasImg);
   }
