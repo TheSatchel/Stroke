@@ -11,11 +11,12 @@ import { showToast } from '../utils/Toast.js';
 export class XianyuGPTChatAdapter extends GPTChatAdapter {
   static get id() { return 'gptchat'; }
   static get label() { return '咸鱼API (ChatGPT 通用)'; }
-  static get defaultModel() { return 'gemini-3.0-pro-image'; }
+  static get defaultModel() { return 'gpt-image-2'; }
   static get defaultEndpoint() { return 'https://allgpt.xianyuw.cn/v1/chat/completions'; }
 
   static get models() {
     return [
+      { id: 'gpt-image-2', label: 'GPT Image 2' },
       { id: 'gemini-3.0-pro-image', label: 'Nano Banana Pro' },
       { id: 'gemini-3-pro-image-preview', label: 'Gemini 3 Pro Image Preview' }
     ];

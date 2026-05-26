@@ -294,7 +294,7 @@ export default class SettingsModal {
 
     const ver = document.createElement('span');
     ver.textContent = 'v' + (window.APP_VERSION || '0.1.0');
-    ver.style.cssText = 'opacity:0.6;margin-right:4px;';
+    ver.style.cssText = 'opacity:0.6;margin-right:4px;font-family:inherit;';
     signature.appendChild(ver);
 
     signature.appendChild(document.createTextNode('Made with ❤️ by '));

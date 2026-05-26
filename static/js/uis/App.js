@@ -40,6 +40,7 @@ export default class App {
     this.currentLineageId = null;
     this.currentVersionIndex = 0;
     this._regionCount = 0;
+    this._generatingFp = null;
 
     this._lineageManager = new LineageManager(this.versionLineages);
     this._persistenceGuard = new PersistenceGuard(this);

@@ -13,14 +13,18 @@ import GenerationPipeline from './GenerationPipeline.js';
  * @param {import('../uis/App.js').default} app
  */
 export async function performGeneration(app) {
-  if (app.config.generating) return;
+  if (app._generatingFp) return;
+
+  const tabsConfig = app.config.tabsConfig;
+  const tabValues = app.config.getTabValues();
+
+  const contentFp = computeContentFingerprint(tabsConfig, tabValues);
+  app._generatingFp = contentFp;
+
   app.config.generating = true;
   app.config.genBtn.textContent = '生成中...';
   app.config.genBtn.disabled = true;
   if (app.config.exportBtn) app.config.exportBtn.style.display = 'none';
-
-  const tabsConfig = app.config.tabsConfig;
-  const tabValues = app.config.getTabValues();
 
   // 收集每个 generate_call widget 的完整配置
   const callWidgetConfigs = {};
@@ -82,7 +86,10 @@ export async function performGeneration(app) {
       if (succeeded === 0) {
         showToast(`所有 ${totalSegments} 段生成均已失败`, 'error', 10000);
       }
-      app.config.onGenComplete();
+      const currentFp = computeContentFingerprint(app.config.tabsConfig, app.config.getTabValues());
+      if (app._generatingFp === currentFp) {
+        app.config.onGenComplete();
+      }
     }
   });
 
@@ -101,20 +108,23 @@ export async function performGeneration(app) {
   if (app.currentLineageId) {
     app.config.setDownloadLineage(app.currentLineageId, app.currentVersionIndex);
   }
+
+  app._generatingFp = null;
 }
 
 /**
  * 管线完成后的处理：创建/更新 lineage 和持久化
  */
 async function _onPipelineComplete(pipeline, app, lineageManager, tabValues, tabsConfig) {
-  // 收集成功的段结果
   const results = pipeline.tasks
     .filter(t => t.status === 'done' && t.result)
     .map(t => t.result);
 
   if (results.length === 0) {
     console.warn('[Generator] 没有成功的段结果');
-    app.config.onGenComplete();
+    if (app._generatingFp === computeContentFingerprint(tabsConfig, tabValues)) {
+      app.config.onGenComplete();
+    }
     return;
   }
 
@@ -123,18 +133,15 @@ async function _onPipelineComplete(pipeline, app, lineageManager, tabValues, tab
   const timeStr = now.getHours().toString().padStart(2, '0') + ':' +
                   now.getMinutes().toString().padStart(2, '0');
 
-  // 计算完整内容指纹（含 prompt 值）
   const contentFp = computeContentFingerprint(tabsConfig, tabValues);
 
-  // 匹配或创建 lineage
-  const tabsToSave = app.config.tabsConfig.filter(tab => tab.unpersist !== true);
+  const tabsToSave = tabsConfig.filter(tab => tab.unpersist !== true);
   const { lineageId, isNew } = lineageManager.matchOrCreate(contentFp, {
     tabValues,
     tabsConfig: tabsToSave.map(t => ({ ...t })),
-    tabOrder: app.config.tabsConfig.map(t => t.id)
+    tabOrder: tabsConfig.map(t => t.id)
   });
 
-  // 追加版本
   const versionIndex = lineageManager.addVersion(lineageId, {
     type: lastResult.type || 'svg',
     svg: lastResult.svg || '',
@@ -143,7 +150,6 @@ async function _onPipelineComplete(pipeline, app, lineageManager, tabValues, tab
     time: timeStr
   });
 
-  // 保存二进制到 IndexedDB
   if (lastResult.dataUrl || lastResult.svg) {
     await lineageManager.saveVersionBinary(lineageId, versionIndex, {
       dataUrl: lastResult.dataUrl || '',
@@ -152,14 +158,22 @@ async function _onPipelineComplete(pipeline, app, lineageManager, tabValues, tab
     });
   }
 
-  // 更新视图状态
-  app.currentLineageId = lineageId;
-  app.currentVersionIndex = versionIndex;
+  const wasSwitchedAway = (() => {
+    try {
+      return contentFp !== computeContentFingerprint(app.config.tabsConfig, app.config.getTabValues());
+    } catch (e) {
+      return true;
+    }
+  })();
 
-  // 将最终结果加载到画布上
-  app.canvas.loadVersion(lastResult);
+  if (wasSwitchedAway) {
+    console.log(`[Generator] 用户已切出 lineage ${lineageId}，结果仅保存不跳转`);
+  } else {
+    app.currentLineageId = lineageId;
+    app.currentVersionIndex = versionIndex;
+    app.canvas.loadVersion(lastResult);
+  }
 
-  // 更新 lineage 内嵌 history 字段
   const lineage = app.versionLineages[lineageId];
   if (lineage) {
     if (typeof lineage.updateHistory === 'function') {
@@ -173,15 +187,13 @@ async function _onPipelineComplete(pipeline, app, lineageManager, tabValues, tab
     }
   }
 
-  // 重建历史面板
   app._rebuildHistoryItems();
   app.history.render();
 
-  // 触发 PersistenceGuard 保存（内部会调 saveLineages，无需单独 persistMeta）
   if (app._persistenceGuard) {
     app._persistenceGuard.markDirty();
     await app._persistenceGuard.flush();
   }
 
-  console.log(`[Generator] Lineage ${lineageId} v${versionIndex} 已保存 (isNew=${isNew})`);
+  console.log(`[Generator] Lineage ${lineageId} v${versionIndex} 已保存 (isNew=${isNew}${wasSwitchedAway ? ', 已切出' : ''})`);
 }
