@@ -21,6 +21,7 @@ import { formatResult } from './ResultFormatter.js';
  * @property {string[]} imageBase64List
  * @property {Array} maskSpecs
  * @property {string} configId
+ * @property {string} fingerprint
  * @property {number} retryCount
  * @property {string} status   - 'pending' | 'running' | 'done' | 'failed'
  * @property {Object} [result]
@@ -94,6 +95,8 @@ export default class GenerationPipeline {
       const imageList = [...(seg.imageBase64List || [])];
       const originalImage = imageList.length > 0 ? imageList[0] : null;
 
+      console.log(`[GenerationPipeline] 段 ${seg.callTabId} 基础图片 ${imageList.length} 张, 待生成蒙版 ${(seg.maskSpecs || []).length} 个`);
+
       for (const spec of (seg.maskSpecs || [])) {
         try {
           const { generateMaskDataUrl } = await import('../utils/MaskGenerator.js');
@@ -113,6 +116,8 @@ export default class GenerationPipeline {
           );
           if (mask) {
             imageList.push(mask);
+            const lenKB = (mask.length / 1024).toFixed(1);
+            console.log(`[GenerationPipeline] 蒙版生成成功: label=${spec.label} type=${spec.type} mode=${maskMode} size=${lenKB}KB`);
           }
         } catch (e) {
           console.error('[GenerationPipeline] 蒙版生成失败:', e);
@@ -125,6 +130,7 @@ export default class GenerationPipeline {
         imageBase64List: imageList,
         maskSpecs: seg.maskSpecs || [],
         configId: seg.configId,
+        fingerprint: seg.fingerprint || '',
         retryCount: 0,
         status: 'pending',
         result: null,
@@ -166,48 +172,95 @@ export default class GenerationPipeline {
   // ================================================================
 
   async _executeAll() {
-    let lastBase64 = null;
-    const segmentResults = [];
     const totalSegments = this.tasks.length;
 
-    for (let si = 0; si < totalSegments; si++) {
-      const task = this.tasks[si];
-
-      while (this.paused) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+    // 按 fingerprint 分组，同 fp 的任务串行（共享 lastBase64），不同 fp 可并发
+    const groups = [];
+    const seen = new Set();
+    for (let i = 0; i < totalSegments; i++) {
+      const task = this.tasks[i];
+      const fp = task.fingerprint || '__default__';
+      if (!seen.has(fp)) {
+        seen.add(fp);
+        groups.push({
+          fingerprint: fp,
+          tasks: this.tasks.filter(t => (t.fingerprint || '__default__') === fp),
+        });
       }
+    }
 
-      const imageList = [...task.imageBase64List];
-      if (lastBase64 && !imageList.includes(lastBase64)) {
-        console.log(`[GenerationPipeline] 段${si} 追加上游结果图`);
-        imageList.push(lastBase64);
-      }
+    const concurrency = this._getConcurrency();
+    console.log(`[GenerationPipeline] ${totalSegments} 段, ${groups.length} 指纹组, 并发=${concurrency}`);
 
-      this._switchAdapter(task);
+    const resultMap = new Map();
 
-      task.status = 'running';
-      if (this.callbacks.onSegmentStart) {
-        this.callbacks.onSegmentStart(task, si, totalSegments);
-      }
+    const runGroup = async (group) => {
+      let lastBase64 = null;
+      for (const task of group.tasks) {
+        const origIndex = this.tasks.indexOf(task);
 
-      try {
-        const result = await this._retryableGenerate(task, imageList, si, totalSegments);
-        lastBase64 = result.base64 || '';
-        task.status = 'done';
-        task.result = result;
-        segmentResults.push(result);
-
-        if (this.callbacks.onSegmentDone) {
-          this.callbacks.onSegmentDone(task);
+        while (this.paused) {
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
-      } catch (err) {
-        task.status = 'failed';
-        console.error(`[GenerationPipeline] 段${si} 最终失败:`, err);
-        if (this.callbacks.onSegmentFail) {
-          this.callbacks.onSegmentFail(task, err);
+
+        const imageList = [...task.imageBase64List];
+        if (lastBase64 && !imageList.includes(lastBase64)) {
+          console.log(`[GenerationPipeline] 段(fp=${group.fingerprint}) 追加上游结果图`);
+          imageList.push(lastBase64);
+        }
+
+        this._switchAdapter(task);
+
+        task.status = 'running';
+        if (this.callbacks.onSegmentStart) {
+          this.callbacks.onSegmentStart(task, origIndex, totalSegments);
+        }
+
+        try {
+          const result = await this._retryableGenerate(task, imageList, origIndex, totalSegments);
+          lastBase64 = result.base64 || '';
+          task.status = 'done';
+          task.result = result;
+          resultMap.set(origIndex, result);
+          if (this.callbacks.onSegmentDone) {
+            this.callbacks.onSegmentDone(task);
+          }
+        } catch (err) {
+          task.status = 'failed';
+          console.error(`[GenerationPipeline] 段(fp=${group.fingerprint}) 最终失败:`, err);
+          if (this.callbacks.onSegmentFail) {
+            this.callbacks.onSegmentFail(task, err);
+          }
+        }
+      }
+    };
+
+    // 并发调度：限制同时运行的组数
+    if (concurrency <= 1 || groups.length <= 1) {
+      for (const group of groups) {
+        await runGroup(group);
+      }
+    } else {
+      const queue = [...groups];
+      const inflight = [];
+      while (queue.length > 0 || inflight.length > 0) {
+        while (queue.length > 0 && inflight.length < concurrency) {
+          const g = queue.shift();
+          const p = runGroup(g).then(() => {
+            const idx = inflight.indexOf(p);
+            if (idx >= 0) inflight.splice(idx, 1);
+          });
+          inflight.push(p);
+        }
+        if (inflight.length > 0) {
+          await Promise.race(inflight);
         }
       }
     }
+
+    const segmentResults = [...resultMap.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([_, r]) => r);
 
     const succeeded = segmentResults.length;
     if (this.callbacks.onAllDone) {
@@ -275,6 +328,16 @@ export default class GenerationPipeline {
       ...(callCfg.params || {})
     };
     this.generator.use(cfg.adapter, perCallCfg);
+  }
+
+  _getConcurrency() {
+    const firstTask = this.tasks[0];
+    if (!firstTask || !firstTask._callWidgetConfig || !firstTask._callWidgetConfig.configId) {
+      return 1;
+    }
+    const allConfigs = loadConfigs();
+    const cfg = allConfigs.find(c => c.id === firstTask._callWidgetConfig.configId);
+    return (cfg && typeof cfg.concurrency === 'number' && cfg.concurrency > 0) ? cfg.concurrency : 1;
   }
 
   _cleanup() {
