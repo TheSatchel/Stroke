@@ -4,6 +4,7 @@
 
 import { el } from '../../utils/DOM.js';
 import { clearAll } from '../../locals/storage.js';
+import { showToast, toggleConsoleForward } from '../../utils/Toast.js';
 
 function hexToHsl(hex) {
   let r = 0, g = 0, b = 0;
@@ -289,7 +290,14 @@ export default class SettingsModal {
 
     // --- 作者签名 ---
     const signature = el('div', 'sm-signature');
-    signature.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:8px;margin-top:16px;margin-bottom:16px;font-size:13px;color:var(--color-text-tertiary);user-select:none;';
+    signature.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:8px;margin-top:16px;margin-bottom:16px;font-size:13px;color:var(--color-text-tertiary);user-select:none;cursor:default;';
+
+    const ver = document.createElement('span');
+    ver.textContent = 'v' + (window.APP_VERSION || '0.1.0');
+    ver.style.cssText = 'opacity:0.6;margin-right:4px;';
+    signature.appendChild(ver);
+
+    signature.appendChild(document.createTextNode('Made with ❤️ by '));
     const githubLink = document.createElement('a');
     githubLink.href = 'https://github.com/TheSatchel/Stroke';
     githubLink.target = '_blank';
@@ -302,10 +310,22 @@ export default class SettingsModal {
     bilibiliLink.rel = 'noopener noreferrer';
     bilibiliLink.style.cssText = 'display:inline-flex;align-items:center;color:var(--color-text-tertiary);text-decoration:none;';
     bilibiliLink.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:middle;"><rect x="2" y="3" width="12" height="10" rx="1"/><rect x="5" y="1" width="1.5" height="2" rx=".75"/><rect x="9.5" y="1" width="1.5" height="2" rx=".75"/></svg>';
-    signature.appendChild(document.createTextNode('Made with ❤️ by '));
     signature.appendChild(githubLink);
     signature.appendChild(bilibiliLink);
     signature.appendChild(document.createTextNode(' Satchel'));
+
+    signature.addEventListener('dblclick', () => {
+      const enabled = toggleConsoleForward();
+      const v = window.APP_VERSION || '0.1.0';
+      showToast(
+        enabled
+          ? `Stroke v${v} — Console 转发已开启`
+          : `Stroke v${v} — Console 转发已关闭`,
+        'success',
+        2000
+      );
+    });
+
     this.modal.appendChild(signature);
 
     this.overlay.appendChild(this.modal);

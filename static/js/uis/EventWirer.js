@@ -6,8 +6,7 @@
  */
 import { defaultConfigTabs } from '../components/ConfigTabs.js';
 import { saveAppState, saveSettingsBarToLineage, deleteHistoryItem, deleteAllHistory, loadSettingsBarFromLineage, TEMPLATE_LINEAGE_ID } from '../locals/Persistence.js';
-import { clearAll } from '../locals/storage.js';
-import { loadVersionBinary } from '../locals/StorageManager.js';
+import { loadVersionBinary, clearAllData } from '../locals/StorageManager.js';
 import { performGeneration } from '../generates/Generator.js';
 
 export default class EventWirer {
@@ -135,8 +134,9 @@ export default class EventWirer {
       deleteAllHistory(self);
     };
     self.settings.onResetAll = () => {
-      clearAll();
-      window.location.reload();
+      clearAllData().finally(() => {
+        window.location.reload();
+      });
     };
 
     // 配置面板拖动/增删/修改后 → 自动存入 lineage

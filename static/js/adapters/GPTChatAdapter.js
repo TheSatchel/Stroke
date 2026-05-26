@@ -189,7 +189,12 @@ export class GPTChatAdapter extends BaseAdapters {
       }
 
       if (resp.status !== 200) {
-        showToast(`${label} API 请求失败 (状态码 ${resp.status})`, 'error', 10000);
+        const serverMsg = data?.error?.message || data?.message || '';
+        const serverCode = data?.error?.code || data?.code || '';
+        const errDetail = serverMsg
+          ? `${serverCode ? `[${serverCode}] ` : ''}${serverMsg}`
+          : `状态码 ${resp.status}`;
+        showToast(`${label} API 请求失败: ${errDetail}`, 'error', 10000);
 
         // bad_response_status_code → fallback
         if (
@@ -212,7 +217,7 @@ export class GPTChatAdapter extends BaseAdapters {
           });
         }
 
-        throw new Error('API 请求失败，状态码: ' + resp.status);
+        throw new Error('API 请求失败: ' + errDetail);
       }
 
       // 解析响应 → ImageResult

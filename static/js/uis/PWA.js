@@ -11,3 +11,21 @@ if ('serviceWorker' in navigator) {
             });
     });
 }
+
+// PWA standalone 模式下限制窗口最小尺寸
+(function () {
+    const MIN_W = 980;
+    const MIN_H = 650;
+
+    function enforceMinSize() {
+        if (!window.matchMedia('(display-mode: standalone)').matches) return;
+        const w = Math.max(window.outerWidth, MIN_W);
+        const h = Math.max(window.outerHeight, MIN_H);
+        if (window.outerWidth < MIN_W || window.outerHeight < MIN_H) {
+            window.resizeTo(w, h);
+        }
+    }
+
+    window.addEventListener('resize', enforceMinSize);
+    enforceMinSize();
+})();

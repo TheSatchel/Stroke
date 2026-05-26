@@ -26,6 +26,7 @@ export const KEYS = Object.freeze({
   themeAccent:    'stroke_theme_accent',
   themeMode:      'stroke_theme_mode',
   panelSizes:     'stroke_panel_sizes',
+  segModelCached: 'stroke_seg_model_cached',
 });
 
 export function safeSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }

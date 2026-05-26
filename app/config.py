@@ -70,6 +70,10 @@ class Settings:
         return self._data.get("pwa", {}).get("display", "standalone")
 
     @property
+    def PWA_DISPLAY_OVERRIDE(self) -> list[str]:
+        return self._data.get("pwa", {}).get("display_override", [])
+
+    @property
     def PWA_ORIENTATION(self) -> str:
         return self._data.get("pwa", {}).get("orientation", "portrait-primary")
 

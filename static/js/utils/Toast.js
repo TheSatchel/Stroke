@@ -127,9 +127,20 @@ export function installGlobalErrorHandlers() {
 }
 // ================================================================
 //  全局 console 劫持（monkey-patch）
+//  默认只转发 error，双击签名区域可切换完整转发
 // ================================================================
 
 let _consolePatched = false;
+let _consoleForwardAll = false;
+
+export function isConsoleForwardAll() {
+  return _consoleForwardAll;
+}
+
+export function toggleConsoleForward() {
+  _consoleForwardAll = !_consoleForwardAll;
+  return _consoleForwardAll;
+}
 
 export function installConsoleLogToToast() {
   if (_consolePatched) return;
@@ -144,6 +155,9 @@ export function installConsoleLogToToast() {
     console[method] = (...args) => {
       // 先调原始方法，保持控制台正常输出
       original.apply(console, args);
+
+      // 默认只转发 error，开启后转发全部
+      if (!_consoleForwardAll && method !== 'error') return;
 
       // 把参数序列化成可读字符串
       const message = args

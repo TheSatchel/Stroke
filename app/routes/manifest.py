@@ -18,6 +18,7 @@ async def manifest():
         "scope": settings.PWA_SCOPE,
         "id": settings.PWA_START_URL,
         "display": settings.PWA_DISPLAY,
+        "display_override": settings.PWA_DISPLAY_OVERRIDE,
         "orientation": settings.PWA_ORIENTATION,
         "theme_color": settings.PWA_THEME_COLOR,
         "background_color": settings.PWA_BACKGROUND_COLOR,
