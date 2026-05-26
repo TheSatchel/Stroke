@@ -21,6 +21,8 @@ pwa:
   theme_color: "#000000"
   background_color: "#000000"
   display: "standalone"          # standalone | fullscreen | minimal-ui | browser
+  display_override:
+    - "window-controls-overlay"
   orientation: "portrait-primary"
   start_url: "/"
   scope: "/"

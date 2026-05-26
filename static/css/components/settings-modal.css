@@ -194,3 +194,22 @@
   color: var(--color-text-tertiary);
   margin-top: 4px;
 }
+
+.sm-signature {
+  position: relative;
+  margin-top: 14px;
+  padding-top: 12px;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  text-align: center;
+}
+
+.sm-signature::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 0.5px;
+  background: var(--color-border-tertiary);
+}

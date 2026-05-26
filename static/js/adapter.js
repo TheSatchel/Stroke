@@ -16,8 +16,8 @@ import { XianyuGPTChatAdapter } from './adapters/XianyuGPTChatAdapter.js';
 import { showWarningToast } from './utils/Toast.js';
 
 const BUILTIN = [
-  GPTChatAdapter,
   XianyuGPTChatAdapter,
+  GPTChatAdapter,
 ];
 
 export class GeneratorService {

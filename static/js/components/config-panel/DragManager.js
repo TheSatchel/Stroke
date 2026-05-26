@@ -109,10 +109,11 @@ export default class DragManager {
   }
 
   // ================================================================
-  //  面板宽度持久化（从 App.js 迁移过来的逻辑）
+  //  面板宽度持久化（vw 比例 — 随窗口缩放）
   // ================================================================
   /**
    * 为 App 安装左右拖拽手柄的 resize 逻辑。
+   * 拖拽时使用 px 获得即时反馈，松开后转为 vw 比例并持久化。
    * @param {HTMLElement} appEl - 根 .app 容器
    * @param {HTMLElement} handleLeft - 左侧拖拽手柄
    * @param {HTMLElement} handleRight - 右侧拖拽手柄
@@ -132,27 +133,52 @@ export default class DragManager {
       };
     };
 
-    const setSizes = (leftMax, rightMax) => {
+    // px 模式：拖拽时使用，响应快
+    const setSizesPx = (leftMax, rightMax) => {
       appEl.style.gridTemplateColumns =
-        `minmax(140px,${leftMax}px) 4px minmax(200px,1fr) 4px minmax(200px,${rightMax}px)`;
+        `minmax(140px,${leftMax}px) 4px minmax(200px,1fr) 4px minmax(140px,${rightMax}px)`;
     };
 
-    const persistSizes = (leftW, rightW) => {
+    // vw 模式：随窗口等比缩放
+    const setSizesVw = (leftVw, rightVw) => {
+      appEl.style.gridTemplateColumns =
+        `minmax(140px,${leftVw.toFixed(2)}vw) 4px minmax(200px,1fr) 4px minmax(140px,${rightVw.toFixed(2)}vw)`;
+    };
+
+    const vwFromPx = (px) => (px / window.innerWidth) * 100;
+
+    const persistSizes = (leftPx, rightPx) => {
       try {
-        localStorage.setItem('stroke_panel_sizes', JSON.stringify({ left: leftW, right: rightW }));
+        const lv = vwFromPx(leftPx);
+        const rv = vwFromPx(rightPx);
+        localStorage.setItem('stroke_panel_sizes', JSON.stringify({ lv, rv }));
       } catch (e) { /* ignore */ }
     };
 
-    // 恢复保存的尺寸
+    // 恢复已保存比例（兼容旧 px 格式）
+    let restored = false;
     try {
       const raw = localStorage.getItem('stroke_panel_sizes');
       if (raw) {
         const saved = JSON.parse(raw);
-        if (saved && typeof saved.left === 'number' && typeof saved.right === 'number') {
-          setSizes(Math.max(saved.left, 140), Math.max(saved.right, 140));
+        if (saved && typeof saved.lv === 'number' && typeof saved.rv === 'number') {
+          setSizesVw(saved.lv, saved.rv);
+          restored = true;
+        } else if (saved && typeof saved.left === 'number' && typeof saved.right === 'number') {
+          // 旧格式迁移
+          const lv = vwFromPx(Math.max(saved.left, 140));
+          const rv = vwFromPx(Math.max(saved.right, 140));
+          setSizesVw(lv, rv);
+          localStorage.setItem('stroke_panel_sizes', JSON.stringify({ lv, rv }));
+          restored = true;
         }
       }
     } catch (e) { /* ignore */ }
+
+    // 无存档时使用默认比例（2560px 下约 190px）
+    if (!restored) {
+      setSizesVw(7.42, 7.42);
+    }
 
     const makeDragger = (handleEl, isLeft) => {
       let dragging = false;
@@ -179,10 +205,10 @@ export default class DragManager {
         const dx = e.clientX - startX;
         if (isLeft) {
           const newLeft = Math.round(Math.max(minW, Math.min(maxW, startCols.left + dx)));
-          setSizes(newLeft, startCols.right);
+          setSizesPx(newLeft, startCols.right);
         } else {
           const newRight = Math.round(Math.max(minW, Math.min(maxW, startCols.right - dx)));
-          setSizes(startCols.left, newRight);
+          setSizesPx(startCols.left, newRight);
         }
       };
 
@@ -195,6 +221,7 @@ export default class DragManager {
         document.body.style.cursor = '';
         const ren = getRenderedWidths();
         persistSizes(ren.left, ren.right);
+        setSizesVw(vwFromPx(ren.left), vwFromPx(ren.right));
       };
 
       document.addEventListener('mousemove', onMove);
@@ -203,5 +230,18 @@ export default class DragManager {
 
     makeDragger(handleLeft, true);
     makeDragger(handleRight, false);
+
+    // 窗口缩放时重新应用 vw 比例
+    window.addEventListener('resize', () => {
+      try {
+        const raw = localStorage.getItem('stroke_panel_sizes');
+        if (raw) {
+          const saved = JSON.parse(raw);
+          if (saved && typeof saved.lv === 'number' && typeof saved.rv === 'number') {
+            setSizesVw(saved.lv, saved.rv);
+          }
+        }
+      } catch (e) { /* ignore */ }
+    });
   }
 }

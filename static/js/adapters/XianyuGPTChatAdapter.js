@@ -9,8 +9,8 @@ import { GPTChatAdapter } from './GPTChatAdapter.js';
 import { showToast } from '../utils/Toast.js';
 
 export class XianyuGPTChatAdapter extends GPTChatAdapter {
-  static get id() { return 'xianyu-gemini'; }
-  static get label() { return '咸鱼 API (Gemini)'; }
+  static get id() { return 'gptchat'; }
+  static get label() { return '咸鱼API (ChatGPT 通用)'; }
   static get defaultModel() { return 'gemini-3.0-pro-image'; }
   static get defaultEndpoint() { return 'https://allgpt.xianyuw.cn/v1/chat/completions'; }
 

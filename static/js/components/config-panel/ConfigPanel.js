@@ -206,7 +206,11 @@ export default class ConfigPanel {
   restoreTabValues(values) {
     if (!values) return;
     for (const [id, val] of Object.entries(values)) {
-      if (this.widgets[id]) {
+      if (!this.widgets[id]) continue;
+      const def = this.widgets[id].def;
+      if (def && def.type === 'region_prompt' && values[id + '__raw'] !== undefined) {
+        this.widgets[id].widget.setValue(values[id + '__raw']);
+      } else {
         this.widgets[id].widget.setValue(val);
       }
     }
