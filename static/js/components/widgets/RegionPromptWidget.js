@@ -109,17 +109,14 @@ export default class RegionPromptWidget {
     body.appendChild(this._previewArea);
 
     // multiline textarea
-    this.textareaEl = el('textarea', 'widget-textarea region-prompt-textarea', {
+    this.textareaEl = el('textarea', 'widget-text widget-textarea region-prompt-textarea', {
       placeholder: '例如：换成红色的花',
-      rows: 3,
+      rows: 4,
       oninput: () => {
         if (this._onChange) this._onChange();
       }
     });
-    this.textareaEl.style.cssText =
-      'width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--color-border-secondary);border-left:3px solid ' + this.color +
-      ';border-radius:var(--border-radius-md);background:var(--color-background-primary);color:var(--color-text-primary);font-size:12px;resize:vertical;' +
-      'min-height:56px;';
+    this.textareaEl.style.borderLeft = '3px solid ' + this.color;
     body.appendChild(this.textareaEl);
 
     this.container.appendChild(body);

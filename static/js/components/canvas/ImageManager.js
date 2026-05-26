@@ -134,6 +134,7 @@ export default class ImageManager {
     canvas.canvasImg.style.backgroundImage = 'none';
     canvas._isShowingUserImage = false;
     canvas._userImageDataUrl = '';
+    canvas._generatedImageDataUrl = null;
 
     canvas.canvasImg.appendChild(canvas.cph);
     canvas.cph.style.display = 'flex';
@@ -168,12 +169,16 @@ export default class ImageManager {
     }
 
     if (imageResult && imageResult.type === 'raster' && imageResult.dataUrl) {
+      canvas._generatedImageDataUrl = imageResult.dataUrl;
       canvas.canvasImg.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">
         <img src="${imageResult.dataUrl}" draggable="false" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:4px;-webkit-user-drag:none;user-select:none;pointer-events:none" />
       </div>`;
     } else if (imageResult && imageResult.svg && isValidSvg(imageResult.svg)) {
+      const fullSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 56 56" fill="none" preserveAspectRatio="xMidYMid meet">${imageResult.svg}</svg>`;
+      canvas._generatedImageDataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(fullSvg)));
       canvas.canvasImg.innerHTML = `<svg width="100%" height="100%" viewBox="0 0 56 56" fill="none" preserveAspectRatio="xMidYMid meet">${imageResult.svg}</svg>`;
     } else {
+      canvas._generatedImageDataUrl = null;
       showWarningToast('生成结果无法显示，请检查 API 配置或模型');
       canvas.canvasImg.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--color-text-tertiary);font-size:12px;text-align:center;padding:16px">
         ⚠ 生成结果无法显示<br>请检查 API 配置或模型

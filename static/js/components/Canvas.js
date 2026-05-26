@@ -26,6 +26,7 @@ export default class Canvas {
     this.onClearCanvas = null;
     this._isShowingUserImage = false;
     this._userImageDataUrl = '';
+    this._generatedImageDataUrl = null;
 
     this._segService = SegmentationService.instance;
     this._segOverlay = null;
@@ -108,7 +109,13 @@ export default class Canvas {
   // ================================================================
   _onMouseDown(e) {
     if (e.target.closest('.canvas-confirm-btn')) return;
-    if (!this._isShowingUserImage) return;
+
+    if (!this._isShowingUserImage) {
+      if (!this._generatedImageDataUrl) return;
+      this._isShowingUserImage = true;
+      this._userImageDataUrl = this._generatedImageDataUrl;
+      if (this.onCanvasImage) this.onCanvasImage(this._generatedImageDataUrl);
+    }
 
     const rect = this.canvasImg.getBoundingClientRect();
     const x = e.clientX - rect.left;
