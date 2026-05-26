@@ -126,9 +126,9 @@ export default class DragManager {
       const cs = getComputedStyle(appEl);
       const parts = cs.gridTemplateColumns.split(' ');
       return {
-        left: parseFloat(parts[0]) || 200,
+        left: parseFloat(parts[0]) || 190,
         mid: parseFloat(parts[2]) || 400,
-        right: parseFloat(parts[4]) || 260
+        right: parseFloat(parts[4]) || 190
       };
     };
 
@@ -149,7 +149,7 @@ export default class DragManager {
       if (raw) {
         const saved = JSON.parse(raw);
         if (saved && typeof saved.left === 'number' && typeof saved.right === 'number') {
-          setSizes(Math.max(saved.left, 140), Math.max(saved.right, 200));
+          setSizes(Math.max(saved.left, 140), Math.max(saved.right, 140));
         }
       }
     } catch (e) { /* ignore */ }
@@ -158,7 +158,7 @@ export default class DragManager {
       let dragging = false;
       let startX = 0;
       let startCols = null;
-      const minW = isLeft ? 140 : 200;
+      const minW = isLeft ? 140 : 140;
       const maxW = isLeft ? 340 : 480;
 
       handleEl.addEventListener('mousedown', (e) => {

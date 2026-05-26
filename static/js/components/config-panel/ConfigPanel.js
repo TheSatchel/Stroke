@@ -2,21 +2,17 @@
  * ConfigPanel.js — 右栏配置面板（通用壳子）
  *
  * 接受 tabsConfig 驱动渲染，每个 tab 定义含 describe 和控件字段。
- * 支持用户"当场设计"添加自定义 tab。
- * - 第一个永远是 prompt，最后一个永远是 generate_call，二者不可拖拽
- * - 新增字段始终插入到最后生成调用之前
- *
- * 拆分后，拖拽逻辑委托给 DragManager，弹窗委托给 TabEditModal，
- * 右键菜单委托给 TabContextMenu。
+ * 拆分后：DOM 构建委托 TabSectionBuilder，region prompt 管理委托 RegionPromptManager，
+ * 导出委托 ExportManager，拖拽/弹窗/右键菜单保持子模块引用。
  */
-
 import { el, svgEl, iconSvg } from '../../utils/DOM.js';
-import { showToast } from '../../utils/Toast.js';
 import { widgetRegistry, tabsToPrompt, getGenerateCallSegments } from '../ConfigTabs.js';
-import { loadVersionBinary } from '../../locals/StorageManager.js';
 import DragManager from './DragManager.js';
 import TabEditModal from './TabEditModal.js';
 import TabContextMenu from './TabContextMenu.js';
+import { makeTabSection } from './TabSectionBuilder.js';
+import RegionPromptManager from './RegionPromptManager.js';
+import ExportManager from './ExportManager.js';
 
 export default class ConfigPanel {
   /**
@@ -30,17 +26,17 @@ export default class ConfigPanel {
     this.widgets = {};
     this.isCollapsed = false;
     this.generating = false;
-    this._dlLineageId = null;
-    this._dlVersionIndex = 0;
     this.onGenerate = null;
     this.onSettingsOpen = null;
-    this.onConfigChange = null;   // 拖动/增删/修改后自动存入 lineage
-    this.onTabRemove = null;      // tab 被删除时回调 (id, def)
+    this.onConfigChange = null;
+    this.onTabRemove = null;
 
     // 子模块
     this.dragManager = new DragManager(this);
     this._tabEditModal = new TabEditModal(this);
     this._tabContextMenu = new TabContextMenu(this);
+    this._regionPromptManager = new RegionPromptManager(this);
+    this._exportManager = new ExportManager();
 
     this.render();
   }
@@ -52,14 +48,10 @@ export default class ConfigPanel {
     this.container.className = 'col-right';
     this.container.innerHTML = '';
 
-    // header
     const header = el('div', 'col-header');
     header.appendChild(el('span', '', { text: '配置' }));
 
-    // 右侧按钮组（靠右）
     const rightGroup = el('span', 'config-header-actions');
-
-    // 添加字段按钮
     const addBtn = el('button', 'add-tab-btn', {
       title: '添加自定义字段',
       text: '+ 字段',
@@ -69,22 +61,19 @@ export default class ConfigPanel {
     header.appendChild(rightGroup);
     this.container.appendChild(header);
 
-    // body
     this.rightBody = el('div', 'right-body', { id: 'rightBody' });
     this.secWrap = el('div', 'sections-wrap', { id: 'secWrap' });
     this.secList = el('div', '', { id: 'secList' });
 
-    // 按 order 排序后渲染所有 tab
     const sorted = [...this.tabsConfig].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     for (const tabDef of sorted) {
-      this.secList.appendChild(this._makeTabSection(tabDef));
+      this.secList.appendChild(makeTabSection(tabDef, this.dragManager, this._tabContextMenu, this.widgets, this));
     }
 
     this.secWrap.appendChild(this.secList);
     this.rightBody.appendChild(this.secWrap);
     this.container.appendChild(this.rightBody);
 
-    // footer
     this.footer = el('div', 'right-footer', { id: 'rightFooter' });
     this.genBtn = el('button', 'gen-btn', {
       id: 'genBtn',
@@ -98,7 +87,7 @@ export default class ConfigPanel {
       id: 'exportBtn',
       text: '导出图片',
       style: 'width:100%;margin-bottom:8px;display:none',
-      onclick: () => this._downloadResult()
+      onclick: () => this._exportManager.download(this.widgets)
     });
     this.footer.appendChild(this.exportBtn);
 
@@ -119,89 +108,8 @@ export default class ConfigPanel {
   }
 
   // ================================================================
-  //  根据 tabDef 生成一个 drag-section
+  //  值收集 & Prompt 拼接
   // ================================================================
-  _makeTabSection(tabDef) {
-    const secId = 'sec-' + tabDef.id;
-    const sec = el('div', 'drag-section', { id: secId });
-    if (tabDef.hidden) sec.style.display = 'none';
-    sec.addEventListener('dragover', e => this.dragManager.dOver(e));
-    sec.addEventListener('dragleave', e => this.dragManager.dLeave(e));
-    sec.addEventListener('drop', e => this.dragManager.dDrop(e, secId));
-
-    // header — prompt 和 generate_call 锁定不可拖
-    const isPinnedSection = tabDef.id === 'prompt' || tabDef.type === 'generate_call';
-    const hdr = el('div', 'drag-header', isPinnedSection ? { style: 'cursor:default' } : { draggable: 'true' });
-    if (!isPinnedSection) {
-      hdr.addEventListener('dragstart', e => this.dragManager.dStart(e));
-      hdr.addEventListener('dragend', e => this.dragManager.dEnd(e));
-    }
-    const handle = el('div', 'drag-handle');
-    if (isPinnedSection) {
-      handle.style.opacity = '0.1';
-      handle.style.cursor = 'default';
-    }
-    handle.innerHTML = '<span></span><span></span><span></span>';
-    hdr.appendChild(handle);
-    hdr.appendChild(el('span', 'drag-title', { text: tabDef.title || tabDef.id }));
-
-    // dblclick 删除（非锁定元素）
-    if (isPinnedSection !== true && tabDef.removable !== false) {
-      hdr.addEventListener('dblclick', () => {
-        this.removeTab(tabDef.id);
-      });
-    }
-
-    // flag 按钮
-    const flagBtn = this._makeSectionFlagBtn(sec);
-    hdr.appendChild(flagBtn);
-
-    // 操作菜单按钮（仅 removable 为 true）
-    if (tabDef.removable !== false) {
-      const menuBtn = el('button', 'tab-menu-btn', { title: '更多操作' });
-      menuBtn.innerHTML = '&ctdot;';
-      menuBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this._tabContextMenu.show(e, tabDef);
-      });
-      hdr.appendChild(menuBtn);
-    }
-
-    sec.appendChild(hdr);
-
-    // body — 委托给对应 widget
-    const body = el('div', 'drag-body');
-    const WidgetClass = widgetRegistry[tabDef.type];
-    if (WidgetClass) {
-      const widget = new WidgetClass(body, tabDef, tabDef.configId || null);
-      this.widgets[tabDef.id] = { widget, def: tabDef };
-    } else {
-      body.appendChild(el('span', '', { text: '未知控件类型: ' + tabDef.type }));
-    }
-
-    sec.appendChild(body);
-    return sec;
-  }
-
-  // ================================================================
-  //  旗标按钮
-  // ================================================================
-  _makeSectionFlagBtn(sec) {
-    const btn = el('button', 'section-flag-btn', {
-      title: '标记完成',
-      onclick: (e) => {
-        e.stopPropagation();
-        btn.classList.toggle('section-flag-btn--done');
-        sec.classList.toggle('drag-section--flagged');
-      }
-    });
-    btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 13 13" fill="none"><line x1="2.5" y1="1.5" x2="2.5" y2="11.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></line><path d="M2.5 1.5 L10.5 1.5 L8.5 4.5 L10.5 7.5 L2.5 7.5 Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" fill="none"></path></svg>';
-    return btn;
-  }
-
-  /**
-   * 获取按 generate_call 分段的所有 prompt
-   */
   getSegmentPrompts() {
     const sorted = [...this.tabsConfig].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     const values = this.getTabValues();
@@ -212,14 +120,10 @@ export default class ConfigPanel {
     }));
   }
 
-  // ================================================================
-  //  值收集 & Prompt 拼接
-  // ================================================================
   getTabValues() {
     const values = {};
     for (const [id, entry] of Object.entries(this.widgets)) {
       values[id] = entry.widget.getValue();
-      // 对 region_prompt 类型，同时存原始用户输入用于指纹计算
       if (entry.def.type === 'region_prompt' && typeof entry.widget.getUserInput === 'function') {
         values[id + '__raw'] = entry.widget.getUserInput();
       }
@@ -236,11 +140,9 @@ export default class ConfigPanel {
   //  添加 / 删除 tab
   // ================================================================
   addCustomTab(tabDef) {
-    // 尊重调用方传入的 id（如果 unique），否则自动生成
     const existing = tabDef.id ? this.tabsConfig.find(t => t.id === tabDef.id) : null;
     const id = (tabDef.id && !existing) ? tabDef.id : ('custom_' + Date.now());
 
-    // 新增字段插入到最后一个 generate_call 之前
     const genCalls = this.tabsConfig.filter(t => t.type === 'generate_call');
     const maxNonGen = this.tabsConfig.filter(t => t.type !== 'generate_call').reduce((max, t) => Math.max(max, t.order ?? 0), 0);
     const lastGenOrder = genCalls.length > 0 ? Math.max(...genCalls.map(t => t.order ?? 1000)) : 1000;
@@ -248,7 +150,6 @@ export default class ConfigPanel {
 
     const def = { ...tabDef, id, removable: true, order: safeOrder };
 
-    // 按 order 插入数组，保持 tabsConfig 始终有序
     const insertAt = this.tabsConfig.findIndex(t => (t.order ?? 0) > safeOrder);
     if (insertAt === -1) {
       this.tabsConfig.push(def);
@@ -256,14 +157,13 @@ export default class ConfigPanel {
       this.tabsConfig.splice(insertAt, 0, def);
     }
 
-    // DOM 插入到最后一个 generate_call 之前
     const genCallEls = Array.from(this.secList.children).filter(el => {
       const tid = el.id.replace('sec-', '');
       const d = this.tabsConfig.find(t => t.id === tid);
       return d && d.type === 'generate_call';
     });
     const lastGenEl = genCallEls[genCallEls.length - 1];
-    const sectionEl = this._makeTabSection(def);
+    const sectionEl = makeTabSection(def, this.dragManager, this._tabContextMenu, this.widgets, this);
     if (lastGenEl) {
       this.secList.insertBefore(sectionEl, lastGenEl);
     } else {
@@ -273,11 +173,9 @@ export default class ConfigPanel {
   }
 
   removeTab(id) {
-    // 锁定元素不可删除
     const def = this.tabsConfig.find(t => t.id === id);
     if (def && (def.id === 'prompt' || def.type === 'generate_call')) return;
 
-    // 如果是 region_prompt，通知 canvas 清理对应选区（统一入口）
     if (def && def.type === 'region_prompt' && this._onRegionRemove && def.data?.label) {
       this._onRegionRemove(def.data.label);
     }
@@ -291,64 +189,16 @@ export default class ConfigPanel {
   }
 
   // ================================================================
-  //  区域 prompt 实例管理（新管线）
+  //  区域 prompt 实例管理（委托）
   // ================================================================
-  _regionCount = 0;
-
-  /**
-   * 添加一个 region_prompt 实例
-   * @param {Object} data - { imageDataUrl, points, color, label, type, canvasWidth, canvasHeight }
-   */
   addRegionPrompt(data) {
-    const id = 'region_' + data.label.toLowerCase();
-
-    // 如果该 label 的 tab 已存在，更新它
-    const existingDef = this.tabsConfig.find(t => t.id === id);
-    if (existingDef) {
-      const entry = this.widgets[id];
-      if (entry && entry.widget && typeof entry.widget.updateImage === 'function') {
-        entry.widget.updateImage(data.imageDataUrl);
-        entry.def.data = data;
-      }
-      return;
-    }
-
-    const def = {
-      id,
-      title: `选区 ${data.label}`,
-      describe: `选区 ${data.label} — 输入该区域的处理方式`,
-      type: 'region_prompt',
-      order: 2 + 0.1 * this._regionCount,
-      removable: true,
-      data,
-    };
-    this._regionCount++;
-    this.addCustomTab(def);
-
-    // 绑定删除 → removeTab 统一处理画布清理
-    const entry = this.widgets[id];
-    if (entry && entry.widget) {
-      entry.widget.onRemove(() => this.removeTab(id));
-    }
+    this._regionPromptManager.add(data);
   }
 
-  /**
-   * 移除所有 region_prompt 类型的 tab
-   */
   removeAllRegionPrompts() {
-    const toRemove = this.tabsConfig.filter(t => t.type === 'region_prompt');
-    for (const def of toRemove) {
-      delete this.widgets[def.id];
-      this.tabsConfig = this.tabsConfig.filter(d => d.id !== def.id);
-      const node = document.getElementById('sec-' + def.id);
-      if (node) node.remove();
-    }
-    this._regionCount = 0;
+    this._regionPromptManager.removeAll();
   }
 
-  /**
-   * 设置选区从 canvas 删除时的回调
-   */
   setOnRegionRemove(fn) {
     this._onRegionRemove = fn;
   }
@@ -375,8 +225,7 @@ export default class ConfigPanel {
   }
 
   setDownloadLineage(lineageId, versionIndex) {
-    this._dlLineageId = lineageId;
-    this._dlVersionIndex = versionIndex;
+    this._exportManager.setSource(lineageId, versionIndex);
   }
 
   showPostGen() {
@@ -384,82 +233,6 @@ export default class ConfigPanel {
     this.genBtn.textContent = '重新生成';
     this.genBtn.disabled = false;
     this.exportBtn.style.display = '';
-  }
-
-  /**
-   * 下载当前 lineage 版本的全尺寸图片（优先 IndexedDB，fallback widget 缓存）
-   */
-  async _downloadResult() {
-    let dataUrl = '';
-    let svgRaw = '';
-
-    // 1) 尝试从 IndexedDB 加载完整二进制
-    if (this._dlLineageId) {
-      try {
-        const bin = await loadVersionBinary(this._dlLineageId, this._dlVersionIndex);
-        if (bin) {
-          dataUrl = bin.dataUrl || '';
-          svgRaw = bin.svg || '';
-        }
-      } catch (e) {
-        console.warn('[ConfigPanel] 从 IndexedDB 加载下载源失败:', e);
-      }
-    }
-
-    // 2) fallback：从 widget 内存缓存取
-    if (!dataUrl && !svgRaw) {
-      const genCalls = Object.entries(this.widgets)
-        .filter(([_, entry]) => entry.def.type === 'generate_call')
-        .sort((a, b) => (a[1].def.order || 0) - (b[1].def.order || 0));
-
-      const last = genCalls[genCalls.length - 1];
-      if (!last) {
-        showToast('没有可导出的结果', 'warning');
-        return;
-      }
-
-      const widget = last[1].widget;
-      dataUrl = widget._resultBase64 || (typeof widget.getResultBase64 === 'function' ? widget.getResultBase64() : '');
-      svgRaw = widget._svgOutput || (typeof widget.getSvgOutput === 'function' ? widget.getSvgOutput() : '');
-    }
-
-    if (!dataUrl && !svgRaw) {
-      showToast('没有可下载的图片数据', 'warning');
-      return;
-    }
-
-    let ext = 'png';
-    let downloadUrl;
-    let needsRevoke = false;
-
-    if (svgRaw) {
-      ext = 'svg';
-      const blob = new Blob([svgRaw], { type: 'image/svg+xml' });
-      downloadUrl = URL.createObjectURL(blob);
-      needsRevoke = true;
-    } else if (dataUrl) {
-      downloadUrl = dataUrl;
-      if (dataUrl.startsWith('data:image/svg+xml')) ext = 'svg';
-      else if (dataUrl.startsWith('data:image/jpeg') || dataUrl.startsWith('data:image/jpg')) ext = 'jpg';
-      else if (dataUrl.startsWith('data:image/webp')) ext = 'webp';
-      else if (dataUrl.startsWith('data:image/png')) ext = 'png';
-    } else {
-      showToast('没有可下载的图片数据', 'warning');
-      return;
-    }
-
-    const a = document.createElement('a');
-    a.href = downloadUrl;
-    a.download = `generated_${Date.now()}.${ext}`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-
-    if (needsRevoke) {
-      setTimeout(() => URL.revokeObjectURL(downloadUrl), 100);
-    }
-
-    showToast(`图片已导出为 ${a.download}`, 'success', 3000);
   }
 
   _notifyConfigChange() {
