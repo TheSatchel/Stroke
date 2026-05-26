@@ -34,7 +34,10 @@ export default class EventWirer {
         if (v) self.canvas.loadVersion(v);
       }
       self.config.setDownloadLineage(item.lineageId, item.versionActive);
-      self.config.showPostGen();
+      this._restoreRegionOverlays();
+      const lineageFp = (lineage && lineage.fingerprint) || '';
+      const isGenerating = !!(self._generatingFp && self._generatingFp === lineageFp);
+      self.config.showPostGen(isGenerating);
     };
 
     // 版本切换（步进器）
@@ -55,6 +58,7 @@ export default class EventWirer {
         if (v) self.canvas.loadVersion(v);
       }
       self.config.setDownloadLineage(item.lineageId, versionIndex);
+      this._restoreRegionOverlays();
       saveAppState(self);
     };
 
@@ -169,6 +173,25 @@ export default class EventWirer {
     const h = this._app.history;
     if (!h || typeof h.rebuildItems !== 'function') return;
     h.rebuildItems(this._app.versionLineages, this._app.currentLineageId);
+  }
+
+  /**
+   * 从 config.tabsConfig 中的 region_prompt 条目恢复画布上的选区叠加层
+   * 用于 lineage/version 切换后重建 SVG 蒙版显示
+   */
+  _restoreRegionOverlays() {
+    const config = this._app.config;
+    const canvas = this._app.canvas;
+    const tabs = config.tabsConfig || [];
+
+    let count = 0;
+    for (const tab of tabs) {
+      if (tab.type === 'region_prompt' && tab.data && tab.data.label) {
+        canvas.addConfirmedSelection(tab.data.label, tab.data);
+        count++;
+      }
+    }
+    this._app._regionCount = count;
   }
 
   notifyConfigChangeSafe() {
