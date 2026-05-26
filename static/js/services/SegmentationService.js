@@ -1,5 +1,10 @@
 /**
- * SegmentationService.js — AI 语义分割服务（单例协调器）
+ * SegmentationService.js — AI 语义分割服务
+ *
+ * 单例模式。通过 Web Worker 运行 Hugging Face Transformers.js 的 SegFormer B2 模型，
+ * 避免 WASM 推理阻塞主线程 UI。
+ *
+ * 生命周期：WASM 检测 → Worker 创建 → 模型下载 → 推理 → 缓存管理。
  *
  * 状态机：DETECTING → IDLE/WASM_DISABLED → DOWNLOADING → READY/ERROR/TIMEOUT
  *
@@ -9,10 +14,6 @@
  *   await seg.load();
  *   const result = await seg.segmentAtPoint(dataUrl, x, y);
  */
-import { detectWasm } from './WasmDetector.js';
-import WorkerManager from './WorkerManager.js';
-import { findClassAtPoint, maskToContour } from './MaskProcessor.js';
-import ProgressTracker from './ProgressTracker.js';
 
 let _instance = null;
 
@@ -35,17 +36,16 @@ export default class SegmentationService {
 
     this._state = STATE.DETECTING;
     this._wasmAvailable = false;
-    this._pipeline = null;
+    this._worker = null;
     this._loadPromise = null;
-    this._lastResults = null;
-    this._lastImageDataUrl = null;
     this._wasmDisabledToastShown = false;
-    this._useWorker = true;
+    this._progressToast = null;
+    this._pendingResolve = null;
+    this._pendingReject = null;
+    this._segmentResolve = null;
+    this._segmentReject = null;
 
-    this._workerManager = new WorkerManager();
-    this._progressTracker = new ProgressTracker();
-
-    this._initWasm();
+    this._detectWasm();
   }
 
   static get instance() {
@@ -59,10 +59,85 @@ export default class SegmentationService {
   // ================================================================
   //  WASM 检测
   // ================================================================
-  _initWasm() {
-    const result = detectWasm();
-    this._wasmAvailable = result.available;
-    this._state = result.state;
+  _detectWasm() {
+    try {
+      if (typeof WebAssembly === 'undefined') {
+        this._wasmAvailable = false;
+      } else {
+        const mod = new WebAssembly.Module(
+          Uint8Array.of(0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00)
+        );
+        this._wasmAvailable = (mod instanceof WebAssembly.Module);
+      }
+    } catch (e) {
+      this._wasmAvailable = false;
+    }
+    this._state = this._wasmAvailable ? STATE.IDLE : STATE.WASM_DISABLED;
+  }
+
+  // ================================================================
+  //  Worker 管理
+  // ================================================================
+  _ensureWorker() {
+    if (this._worker) return;
+    this._worker = new Worker(
+      new URL('./SegmentationWorker.js', import.meta.url),
+      { type: 'module' }
+    );
+    this._worker.onmessage = (e) => this._onWorkerMessage(e.data);
+    this._worker.onerror = (err) => {
+      console.error('[SegmentationService] Worker error:', err);
+      if (this._segmentReject) {
+        this._segmentReject(new Error('Worker 异常'));
+        this._segmentResolve = null;
+        this._segmentReject = null;
+      }
+      if (this._pendingReject) {
+        this._pendingReject(new Error('Worker 异常'));
+        this._pendingResolve = null;
+        this._pendingReject = null;
+      }
+    };
+  }
+
+  _onWorkerMessage(msg) {
+    switch (msg.type) {
+      case 'progress':
+        this._updateProgressToast(msg.message);
+        break;
+      case 'ready':
+        this._state = STATE.READY;
+        this._markModelCached();
+        this._dismissProgressToast();
+        this._toastMod?.showToast('✅ AI 分割模型已就绪，点击图片即可自动识别区域', 'success', 5000);
+        if (this._pendingResolve) {
+          this._pendingResolve(true);
+          this._pendingResolve = null;
+          this._pendingReject = null;
+        }
+        break;
+      case 'result':
+        if (this._segmentResolve) {
+          this._segmentResolve(msg);
+          this._segmentResolve = null;
+          this._segmentReject = null;
+        } else {
+          console.warn('[SegmentationService] 收到 Worker 结果但无等待者');
+        }
+        break;
+      case 'error':
+        console.error('[SegmentationService]', msg.message);
+        if (this._segmentReject) {
+          this._segmentReject(new Error(msg.message));
+          this._segmentResolve = null;
+          this._segmentReject = null;
+        } else if (this._pendingReject) {
+          this._pendingReject(new Error(msg.message));
+          this._pendingResolve = null;
+          this._pendingReject = null;
+        }
+        break;
+    }
   }
 
   // ================================================================
@@ -80,58 +155,8 @@ export default class SegmentationService {
 
     this._state = STATE.DOWNLOADING;
 
-    const { showToast, dismissToast } = await import('../utils/Toast.js');
-    this._progressTracker.setToastMod({ showToast, dismissToast });
-
-    this._workerManager.ensureWorker();
-    this._workerManager.setCallbacks({
-      onProgress: (msg) => this._progressTracker.update(msg),
-      onReady: () => {
-        this._state = STATE.READY;
-        this._markModelCached();
-        this._progressTracker.dismiss();
-        showToast('✅ AI 分割模型已就绪，点击图片即可自动识别区域', 'success', 5000);
-        if (this._workerManager.pendingResolve) {
-          this._workerManager.pendingResolve(true);
-          this._workerManager.pendingResolve = null;
-          this._workerManager.pendingReject = null;
-        }
-      },
-      onError: (msg) => {
-        console.error('[SegmentationService]', msg);
-      }
-    });
-
-    this._progressTracker.update('📦 正在启动 AI 分割引擎…');
-
-    this._loadPromise = new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        if (this._workerManager.pendingReject) {
-          this._workerManager.pendingReject(new Error('模型加载超时'));
-          this._workerManager.pendingResolve = null;
-          this._workerManager.pendingReject = null;
-        }
-        this._state = STATE.TIMEOUT;
-        this._progressTracker.dismiss();
-        showToast('⚠️ AI 分割模型加载超时，请刷新页面后重试', 'error', 8000);
-        this._loadPromise = null;
-      }, 300000);
-
-      this._workerManager.pendingResolve = (ok) => {
-        clearTimeout(timeout);
-        resolve(ok);
-      };
-      this._workerManager.pendingReject = (err) => {
-        clearTimeout(timeout);
-        this._state = STATE.ERROR;
-        this._progressTracker.dismiss();
-        showToast(`⚠️ AI 分割模型加载失败 — ${err.message}`, 'error', 8000);
-        this._loadPromise = null;
-        reject(err);
-      };
-
-      this._workerManager.worker.postMessage({ type: 'load' });
-    });
+    // 立即赋值 _loadPromise，阻止并发调用进入第二个 load
+    this._loadPromise = this._doLoad();
 
     try {
       return await this._loadPromise;
@@ -140,33 +165,66 @@ export default class SegmentationService {
     }
   }
 
+  async _doLoad() {
+    const { showToast, dismissToast } = await import('../utils/Toast.js');
+    this._toastMod = { showToast, dismissToast };
+    this._ensureWorker();
+    this._updateProgressToast('📦 正在启动 AI 分割引擎…');
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        if (this._pendingReject) {
+          this._pendingReject(new Error('模型加载超时'));
+          this._pendingResolve = null;
+          this._pendingReject = null;
+        }
+        this._state = STATE.TIMEOUT;
+        this._dismissProgressToast();
+        showToast('⚠️ AI 分割模型加载超时，请刷新页面后重试', 'error', 8000);
+        this._loadPromise = null;
+      }, 300000);
+
+      this._pendingResolve = (ok) => {
+        clearTimeout(timeout);
+        resolve(ok);
+      };
+      this._pendingReject = (err) => {
+        clearTimeout(timeout);
+        this._state = STATE.ERROR;
+        this._dismissProgressToast();
+        showToast(`⚠️ AI 分割模型加载失败 — ${err.message}`, 'error', 8000);
+        this._loadPromise = null;
+        reject(err);
+      };
+
+      this._worker.postMessage({ type: 'load' });
+    });
+  }
+
   // ================================================================
   //  推理
   // ================================================================
   async segmentAtPoint(imageDataUrl, clickX, clickY) {
     if (this._state !== STATE.READY) return null;
+    if (!this._worker) return null;
 
-    if (this._useWorker && this._workerManager.worker) {
-      try {
-        return await this._segmentViaWorker(imageDataUrl, clickX, clickY);
-      } catch (e) {
-        console.warn('[SegmentationService] Worker 推理失败，回退到主线程:', e.message);
-        this._useWorker = false;
-      }
+    try {
+      return await this._segmentViaWorker(imageDataUrl, clickX, clickY);
+    } catch (e) {
+      console.error('[SegmentationService] Worker 推理失败:', e.message);
+      return null;
     }
-
-    return this._segmentInline(imageDataUrl, clickX, clickY);
   }
 
   async _segmentViaWorker(imageDataUrl, clickX, clickY) {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
-        this._workerManager.segmentResolve = null;
-        this._workerManager.segmentReject = null;
+        this._segmentResolve = null;
+        this._segmentReject = null;
         reject(new Error('Worker 推理超时'));
       }, 30000);
 
-      this._workerManager.segmentResolve = (msg) => {
+      this._segmentResolve = (msg) => {
         clearTimeout(timeout);
         resolve(msg.maskPoints && msg.maskPoints.length > 0 ? {
           maskPoints: msg.maskPoints,
@@ -175,14 +233,14 @@ export default class SegmentationService {
           maskHeight: msg.maskHeight,
         } : null);
       };
-      this._workerManager.segmentReject = (err) => {
+      this._segmentReject = (err) => {
         clearTimeout(timeout);
         reject(err);
       };
 
       const img = new Image();
       img.onload = () => {
-        this._workerManager.worker.postMessage({
+        this._worker.postMessage({
           type: 'segment',
           imageDataUrl, clickX, clickY,
           naturalWidth: img.naturalWidth,
@@ -191,47 +249,30 @@ export default class SegmentationService {
       };
       img.onerror = () => {
         clearTimeout(timeout);
-        this._workerManager.segmentResolve = null;
-        this._workerManager.segmentReject = null;
+        this._segmentResolve = null;
+        this._segmentReject = null;
         resolve(null);
       };
       img.src = imageDataUrl;
     });
   }
 
-  async _segmentInline(imageDataUrl, clickX, clickY) {
-    if (!this._pipeline) {
-      console.log('[SegmentationService] 主线程加载模型…');
-      const mod = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0/dist/transformers.min.js');
-      this._pipeline = await mod.pipeline('image-segmentation', 'Xenova/segformer-b2-finetuned-ade-512-512');
-    }
-
-    let results;
-    if (imageDataUrl === this._lastImageDataUrl && this._lastResults) {
-      results = this._lastResults;
+  // ================================================================
+  //  进度 Toast
+  // ================================================================
+  _updateProgressToast(message) {
+    if (this._progressToast && this._progressToast.parentNode) {
+      this._progressToast.textContent = message;
     } else {
-      results = await this._pipeline(imageDataUrl);
-      this._lastResults = results;
-      this._lastImageDataUrl = imageDataUrl;
+      this._progressToast = this._toastMod.showToast(message, 'warning', 300000);
     }
+  }
 
-    const img = await new Promise((resolve, reject) => {
-      const i = new Image();
-      i.onload = () => resolve(i);
-      i.onerror = reject;
-      i.src = imageDataUrl;
-    });
-
-    const found = findClassAtPoint(results, clickX, clickY, img.naturalWidth, img.naturalHeight);
-    if (!found) return null;
-
-    const maskPoints = maskToContour(found.res.mask, found.px, found.py);
-    return {
-      maskPoints,
-      classLabel: found.res.label,
-      maskWidth: found.res.mask.width,
-      maskHeight: found.res.mask.height,
-    };
+  _dismissProgressToast() {
+    if (this._progressToast && this._toastMod?.dismissToast) {
+      this._toastMod.dismissToast(this._progressToast);
+    }
+    this._progressToast = null;
   }
 
   // ================================================================
@@ -248,10 +289,8 @@ export default class SegmentationService {
   }
 
   clearCache() {
-    this._lastResults = null;
-    this._lastImageDataUrl = null;
-    if (this._workerManager.worker) {
-      this._workerManager.worker.postMessage({ type: 'clear' });
+    if (this._worker) {
+      this._worker.postMessage({ type: 'clear' });
     }
   }
 }
