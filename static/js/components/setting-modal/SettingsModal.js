@@ -289,7 +289,7 @@ export default class SettingsModal {
 
     // --- 作者签名 ---
     const signature = el('div', 'sm-signature');
-    signature.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:8px;margin-top:16px;font-size:13px;color:var(--color-text-tertiary);user-select:none;';
+    signature.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:8px;margin-top:16px;margin-bottom:16px;font-size:13px;color:var(--color-text-tertiary);user-select:none;';
     const githubLink = document.createElement('a');
     githubLink.href = 'https://github.com/TheSatchel/Stroke';
     githubLink.target = '_blank';
