@@ -59,8 +59,10 @@ export default class RegionPromptWidget {
     this.type = config.data?.type || 'point';
     this.canvasWidth = config.data?.canvasWidth || 512;
     this.canvasHeight = config.data?.canvasHeight || 512;
+    this.naturalWidth = config.data?.naturalWidth || this.canvasWidth;
+    this.naturalHeight = config.data?.naturalHeight || this.canvasHeight;
     this._onChange = null;
-    this._onRemove = null; // 被移除时的回调
+    this._onRemove = null;
     this.render();
   }
 
@@ -99,7 +101,7 @@ export default class RegionPromptWidget {
     const removeBtn = el('button', 'widget-image-remove region-preview-remove', {
       html: '×',
       title: '删除此选区',
-      style: 'position:absolute;top:4px;right:4px;z-index:5;width:20px;height:20px;border-radius:50%;border:none;background:rgba(0,0,0,0.55);color:#fff;font-size:12px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;',
+      style: 'position:absolute;top:4px;right:4px;z-index:5;width:20px;height:20px;border-radius:50%;border:none;background:rgba(0,0,0,0.55);color:#fff;font-size:12px;line-height:1;cursor:pointer;display:none;align-items:center;justify-content:center;',
       onclick: () => {
         if (this._onRemove) this._onRemove();
       }
@@ -131,6 +133,19 @@ export default class RegionPromptWidget {
   // ================================================================
   //  Mask 渲染
   // ================================================================
+  _computeRenderArea(natW, natH, containerW, containerH) {
+    const imgRatio = natW / natH;
+    const containerRatio = containerW / containerH;
+    if (imgRatio > containerRatio) {
+      const renderedW = containerW;
+      const renderedH = containerW / imgRatio;
+      return { renderedW, renderedH, padLeft: 0, padTop: (containerH - renderedH) / 2 };
+    }
+    const renderedH = containerH;
+    const renderedW = containerH * imgRatio;
+    return { renderedW, renderedH, padLeft: (containerW - renderedW) / 2, padTop: 0 };
+  }
+
   _renderMask() {
     const canvas = this._maskCanvas;
     const img = this._origImg;
@@ -143,35 +158,42 @@ export default class RegionPromptWidget {
     canvas.height = displayHeight;
     const ctx = canvas.getContext('2d');
 
-    // 缩放比例：从 canvas 容器坐标系 → 当前显示坐标系
-    const scaleX = displayWidth / this.canvasWidth;
-    const scaleY = displayHeight / this.canvasHeight;
+    const natW = this.naturalWidth || this.canvasWidth;
+    const natH = this.naturalHeight || this.canvasHeight;
+
+    const origArea = this._computeRenderArea(natW, natH, this.canvasWidth, this.canvasHeight);
+    const currArea = this._computeRenderArea(natW, natH, displayWidth, displayHeight);
 
     if (this.type === 'point') {
-      // 圆形区域（以点为中心，半径 30px 缩放）
-      const cx = (this._pointX ?? this.points[0]?.x ?? 0) * scaleX;
-      const cy = (this._pointY ?? this.points[0]?.y ?? 0) * scaleY;
-      const r = 30 * Math.min(scaleX, scaleY);
+      const rawX = this._pointX ?? this.points[0]?.x ?? 0;
+      const rawY = this._pointY ?? this.points[0]?.y ?? 0;
+      const imgRelX = (rawX - origArea.padLeft) / (origArea.renderedW || 1);
+      const imgRelY = (rawY - origArea.padTop) / (origArea.renderedH || 1);
+      const cx = imgRelX * currArea.renderedW + currArea.padLeft;
+      const cy = imgRelY * currArea.renderedH + currArea.padTop;
+      const r = Math.max(30 * Math.min(displayWidth / this.canvasWidth, displayHeight / this.canvasHeight), 8);
 
       ctx.beginPath();
       ctx.arc(cx, cy, Math.max(r, 8), 0, Math.PI * 2);
       ctx.closePath();
-      ctx.fillStyle = this.color + '59'; // alpha ~0.35
+      ctx.fillStyle = this.color + '59';
       ctx.fill();
       ctx.strokeStyle = this.color;
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      // 左上角标签
       this._drawLabel(ctx, this.label);
 
     } else if ((this.type === 'lasso' || this.type === 'segmentation') && this.points.length >= 3) {
-      // 多边形
       ctx.beginPath();
-      const p0 = this.points[0];
-      ctx.moveTo(p0.x * scaleX, p0.y * scaleY);
-      for (let i = 1; i < this.points.length; i++) {
-        ctx.lineTo(this.points[i].x * scaleX, this.points[i].y * scaleY);
+      for (let i = 0; i < this.points.length; i++) {
+        const p = this.points[i];
+        const imgRelX = (p.x - origArea.padLeft) / (origArea.renderedW || 1);
+        const imgRelY = (p.y - origArea.padTop) / (origArea.renderedH || 1);
+        const x = imgRelX * currArea.renderedW + currArea.padLeft;
+        const y = imgRelY * currArea.renderedH + currArea.padTop;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
       }
       ctx.closePath();
       ctx.fillStyle = this.color + '59';
@@ -180,7 +202,6 @@ export default class RegionPromptWidget {
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      // 左上角标签
       this._drawLabel(ctx, this.label);
     }
   }
@@ -318,8 +339,18 @@ export default class RegionPromptWidget {
   /**
    * 更新图片引用（当同一区域刷新图时）
    */
-  updateImage(dataUrl) {
+  updateImage(dataUrl, data) {
     this.imageDataUrl = dataUrl;
+    if (data) {
+      this.points = data.points || this.points;
+      this._pointX = data.x != null ? data.x : this._pointX;
+      this._pointY = data.y != null ? data.y : this._pointY;
+      this.type = data.type || this.type;
+      this.canvasWidth = data.canvasWidth || this.canvasWidth;
+      this.canvasHeight = data.canvasHeight || this.canvasHeight;
+      this.naturalWidth = data.naturalWidth || this.naturalWidth;
+      this.naturalHeight = data.naturalHeight || this.naturalHeight;
+    }
     if (this._origImg) {
       this._origImg.src = dataUrl;
       this._origImg.onload = () => this._renderMask();

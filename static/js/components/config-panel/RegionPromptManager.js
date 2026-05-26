@@ -27,7 +27,7 @@ export default class RegionPromptManager {
     if (existingDef) {
       const entry = panel.widgets[id];
       if (entry && entry.widget && typeof entry.widget.updateImage === 'function') {
-        entry.widget.updateImage(data.imageDataUrl);
+        entry.widget.updateImage(data.imageDataUrl, data);
         entry.def.data = data;
       }
       return;

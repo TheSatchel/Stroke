@@ -22,6 +22,8 @@ function simpleHash(str) {
  */
 function buildPrompt(tabDefs, tabValues, startIndex, endIndex) {
   const parts = [];
+  let regionCount = 0;
+  let regionSkipped = 0;
   for (let i = startIndex; i < endIndex && i < tabDefs.length; i++) {
     const def = tabDefs[i];
     if (def.type === 'generate_call') continue;
@@ -31,6 +33,10 @@ function buildPrompt(tabDefs, tabValues, startIndex, endIndex) {
       const val = tabValues[def.id];
       if (val && typeof val === 'string' && val.trim()) {
         parts.push(val.trim());
+        regionCount++;
+      } else {
+        regionSkipped++;
+        console.log(`[segmentparser] region_prompt widget=${def.id} 值为空, 已跳过 (是否未填写内容?)`);
       }
       continue;
     }
@@ -41,6 +47,7 @@ function buildPrompt(tabDefs, tabValues, startIndex, endIndex) {
     if (!fmt) continue;
     parts.push(fmt.replace('{value}', String(val)));
   }
+  console.log(`[segmentparser] buildPrompt 段[${startIndex}-${endIndex}): 找到 ${regionCount + regionSkipped} 个选区 (${regionCount} 有效, ${regionSkipped} 跳过), 总片段 ${parts.length}`);
   return parts.join(', ');
 }
 
@@ -74,16 +81,31 @@ function buildFingerprint(tabDefs, tabValues, startIndex, endIndex) {
  */
 function findImageBase64List(tabDefs, tabValues, startIndex, endIndex) {
   const list = [];
+  const seen = new Set();
   for (let i = startIndex; i < endIndex && i < tabDefs.length; i++) {
     const def = tabDefs[i];
+    // 标准图片/画布参考图 类型
     if (def.type === 'image' || def.type === 'canvas_ref_image') {
       const v = tabValues[def.id];
       if (v && typeof v === 'string' && v.startsWith('data:image/')) {
         const lenKB = (v.length / 1024).toFixed(1);
         console.log(`[segmentparser] 段[${startIndex}-${endIndex}) 找到图片: widget=${def.id} size=${lenKB}KB prefix=${v.substring(0, 40)}`);
         list.push(v);
+        seen.add(v);
       } else {
         console.log(`[segmentparser] 段[${startIndex}-${endIndex}) widget=${def.id} 无有效图片 (value=${typeof v}: ${String(v).substring(0, 30)})`);
+      }
+    }
+    // 选区图片（region_prompt 的 data.imageDataUrl）
+    if (def.type === 'region_prompt' && def.data && def.data.imageDataUrl) {
+      const v = def.data.imageDataUrl;
+      if (v && typeof v === 'string' && v.startsWith('data:image/') && !seen.has(v)) {
+        const lenKB = (v.length / 1024).toFixed(1);
+        console.log(`[segmentparser] 段[${startIndex}-${endIndex}) 找到选区图片: widget=${def.id} size=${lenKB}KB prefix=${v.substring(0, 40)}`);
+        list.push(v);
+        seen.add(v);
+      } else if (seen.has(v)) {
+        console.log(`[segmentparser] 段[${startIndex}-${endIndex}) widget=${def.id} 选区图片与已有图片重复，已跳过`);
       }
     }
   }
@@ -103,6 +125,8 @@ function buildMaskSpecs(tabDefs, tabValues, startIndex, endIndex) {
     const def = tabDefs[i];
     if (def.type !== 'region_prompt' || !def.data) continue;
     const d = def.data;
+    const pointsLen = (d.points || []).length;
+    console.log(`[segmentparser] 段[${startIndex}-${endIndex}) 发现选区蒙版: widget=${def.id} label=${d.label || '?'} type=${d.type || 'lasso'} points=${pointsLen}`);
     specs.push({
       points:        d.points || [],
       type:          d.type || 'lasso',
@@ -116,6 +140,7 @@ function buildMaskSpecs(tabDefs, tabValues, startIndex, endIndex) {
       label:         d.label || 'A',
     });
   }
+  console.log(`[segmentparser] 段[${startIndex}-${endIndex}) 共收集 ${specs.length} 个选区蒙版规格`);
   return specs;
 }
 

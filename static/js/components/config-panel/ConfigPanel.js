@@ -47,6 +47,7 @@ export default class ConfigPanel {
   render() {
     this.container.className = 'col-right';
     this.container.innerHTML = '';
+    this.widgets = {};
 
     const header = el('div', 'col-header');
     header.appendChild(el('span', '', { text: '配置' }));
@@ -217,7 +218,7 @@ export default class ConfigPanel {
   }
 
   doGen() {
-    if (this.generating) return;
+    if (window.__strokeApp && window.__strokeApp._generatingFp) return;
     if (this.onGenerate) this.onGenerate();
   }
 
@@ -232,11 +233,17 @@ export default class ConfigPanel {
     this._exportManager.setSource(lineageId, versionIndex);
   }
 
-  showPostGen() {
-    this.generating = false;
-    this.genBtn.textContent = '重新生成';
-    this.genBtn.disabled = false;
-    this.exportBtn.style.display = '';
+  showPostGen(isCurrentlyGenerating = false) {
+    this.generating = isCurrentlyGenerating;
+    if (isCurrentlyGenerating) {
+      this.genBtn.textContent = '生成中...';
+      this.genBtn.disabled = true;
+      this.exportBtn.style.display = 'none';
+    } else {
+      this.genBtn.textContent = '重新生成';
+      this.genBtn.disabled = false;
+      this.exportBtn.style.display = '';
+    }
   }
 
   _notifyConfigChange() {

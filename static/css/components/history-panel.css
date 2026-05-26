@@ -15,8 +15,8 @@
 
 .hist-search-input {
   width: 100%;
-  font-size: 11px;
-  padding: 4px 8px;
+  font-size: 12px;
+  padding: 6px 8px;
   border: 1px solid var(--color-border-secondary);
   border-radius: var(--border-radius-sm);
   background: var(--color-background-secondary);
@@ -24,6 +24,9 @@
   outline: none;
   font-family: var(--font-sans);
   box-sizing: border-box;
+  resize: vertical;
+  min-height: 48px;
+  line-height: 1.5;
 }
 
 .hist-search-input::placeholder {

@@ -158,6 +158,10 @@ export class GPTChatAdapter extends BaseAdapters {
       payload.max_tokens = maxTokens;
     }
 
+    if (/[^\x00-\xFF]/.test(apiKey)) {
+      throw new Error('API Key 输入可能有误，请检查是否包含中文或特殊字符');
+    }
+
     const headers = {
       'Authorization': 'Bearer ' + apiKey,
       'Content-Type': 'application/json'
@@ -260,7 +264,7 @@ export class GPTChatAdapter extends BaseAdapters {
       if (err.name === 'AbortError') {
         throw new Error('请求超时 (360s)');
       }
-      if (isFallback) {
+      if (isFallback || /API Key|ISO-8859|header/i.test(err.message)) {
         throw err;
       }
       showToast(`${label} 网络错误，尝试 fallback: ${err.message}`, 'warning', 6000);

@@ -115,10 +115,10 @@ export default class HistoryPanel {
 
     // 搜索栏（底部）
     const searchWrap = el('div', 'hist-search-wrap');
-    const searchInput = el('input', 'hist-search-input', {
-      type: 'text',
+    const searchInput = el('textarea', 'hist-search-input', {
       placeholder: '搜索名称 (拼音/首字母, 空格分词)',
-      value: this._searchQuery
+      text: this._searchQuery,
+      rows: 2
     });
     let _composing = false;
     searchInput.addEventListener('compositionstart', () => { _composing = true; });
