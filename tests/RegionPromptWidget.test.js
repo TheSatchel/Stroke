@@ -37,19 +37,6 @@ describe('RegionPromptWidget', () => {
     expect(parseInt(textarea.getAttribute('rows'))).toBe(4);
   });
 
-  it('should apply border-left color matching region color', () => {
-    new RegionPromptWidget(container, config);
-    const textarea = container.querySelector('textarea');
-    expect(textarea.style.borderLeft).toBe('3px solid rgb(59, 130, 246)');
-  });
-
-  it('should apply border-left color for different region colors', () => {
-    config.data.color = '#E11D48';
-    new RegionPromptWidget(container, config);
-    const textarea = container.querySelector('textarea');
-    expect(textarea.style.borderLeft).toBe('3px solid rgb(225, 29, 72)');
-  });
-
   it('should render describe paragraph', () => {
     new RegionPromptWidget(container, config);
     const desc = container.querySelector('.widget-describe');

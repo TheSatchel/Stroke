@@ -116,7 +116,6 @@ export default class RegionPromptWidget {
         if (this._onChange) this._onChange();
       }
     });
-    this.textareaEl.style.borderLeft = '3px solid ' + this.color;
     body.appendChild(this.textareaEl);
 
     this.container.appendChild(body);
