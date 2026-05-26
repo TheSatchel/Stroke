@@ -1,55 +1,18 @@
 /**
  * GenerationPipeline.js — 后台生成任务管线 (Command 模式)
  *
- * 职责：
- *   - 将生成任务拆为 SegmentTask 队列
- *   - 指数退避重试：2s → 4s → 8s（共 4 次机会）
- *   - Wake Lock 防休眠（如果可用）
- *   - visibilitychange 暂停/恢复
- *   - 驱动 LineageManager 创建/追加版本
- *   - 每段完成后更新 UI（通过回调）
+ * 职责：任务构建、队列执行、重试调度、adapter 切换、清理
  *
  * 不负责：
  *   - 具体 HTTP 请求（委托 GeneratorService）
  *   - 存储持久化（委托 PersistenceGuard）
  */
-
 import { parse as parseSegments } from '../services/segmentparser.js';
-import { svgToBase64DataUrl } from '../adapters/ResponseParser.js';
-import { createThumbnail } from '../utils/Image.js';
 import { loadConfigs } from '../locals/storage.js';
-
-const MAX_RETRIES = 3;           // 最多重试 3 次 → 共 4 次机会
-const BASE_DELAY_MS = 2000;      // 初始退避 2s
-const RETRYABLE_ERRORS = [
-  'AbortError',
-  'NetworkError',
-  'TimeoutError',
-  'TypeError',                   // fetch() 失败
-];
-
-// 判断是否为可重试错误
-function isRetryable(err) {
-  if (!err) return false;
-  // 检查错误名称
-  if (err.name && RETRYABLE_ERRORS.includes(err.name)) return true;
-  // 检查消息关键字
-  const msg = (err.message || '').toLowerCase();
-  if (msg.includes('failed to fetch') || msg.includes('network') || msg.includes('abort') || msg.includes('timeout')) return true;
-  // 检查 HTTP 503 (SW 回退)
-  if (err.status === 503 || (err.message && err.message.includes('503'))) return true;
-  return false;
-}
-
-/**
- * 指数退避延迟
- * @param {number} attempt - 第几次重试 (1-based)
- * @returns {Promise<void>}
- */
-function backoffDelay(attempt) {
-  const ms = BASE_DELAY_MS * Math.pow(2, attempt - 1); // 2s, 4s, 8s
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+import { isRetryable, backoffDelay, MAX_RETRIES, BASE_DELAY_MS } from './RetryHandler.js';
+import WakeLockManager from './WakeLockManager.js';
+import VisibilityMonitor from './VisibilityMonitor.js';
+import { formatResult } from './ResultFormatter.js';
 
 /**
  * @typedef {Object} SegmentTask
@@ -65,11 +28,11 @@ function backoffDelay(attempt) {
 
 /**
  * @typedef {Object} PipelineCallbacks
- * @property {function(SegmentTask, number, number):void} onSegmentStart  - 段开始(task, segmentIndex, totalSegments)
- * @property {function(SegmentTask, number, number, number, number):void} onSegmentRetry - 重试中(task, attempt, maxRetries, segmentIndex, totalSegments)
- * @property {function(SegmentTask):void} onSegmentDone      - 段完成
- * @property {function(SegmentTask, Error):void} onSegmentFail - 段失败（最终）
- * @property {function(number, number):void} onAllDone       - 全部完成(succeeded, totalSegments)
+ * @property {function(SegmentTask, number, number):void} onSegmentStart
+ * @property {function(SegmentTask, number, number, number, number):void} onSegmentRetry
+ * @property {function(SegmentTask):void} onSegmentDone
+ * @property {function(SegmentTask, Error):void} onSegmentFail
+ * @property {function(number, number):void} onAllDone
  */
 
 export default class GenerationPipeline {
@@ -97,11 +60,9 @@ export default class GenerationPipeline {
     /** @type {boolean} */
     this.paused = false;
 
-    /** @type {WakeLockSentinel|null} */
-    this._wakeLock = null;
-
-    /** @type {Function|null} 解绑 visibilitychange */
-    this._visibilityUnbind = null;
+    this._wakeLockManager = new WakeLockManager();
+    this._visibilityMonitor = new VisibilityMonitor();
+    this._visibilityMonitor.setTarget(this);
   }
 
   // ================================================================
@@ -120,23 +81,19 @@ export default class GenerationPipeline {
       return;
     }
 
-    // 切分段
     const configIds = {};
     for (const [k, v] of Object.entries(callWidgetConfigs)) {
       configIds[k] = v.configId;
     }
     const segments = parseSegments(tabsConfig, tabValues, configIds);
 
-    // 读取 mask_mode（来自第一个 call widget config，或默认 'transparent'）
     const firstCallConfig = Object.values(callWidgetConfigs || {})[0];
     const maskMode = firstCallConfig?.params?.mask_mode || 'transparent';
 
-    // 构建任务列表（异步，因为 overlay 模式需要加载原图）
     const taskPromises = segments.map(async (seg) => {
       const imageList = [...(seg.imageBase64List || [])];
       const originalImage = imageList.length > 0 ? imageList[0] : null;
 
-      // 为每个 maskSpec 生成蒙版图，追加到 imageBase64List
       for (const spec of (seg.maskSpecs || [])) {
         try {
           const { generateMaskDataUrl } = await import('../utils/MaskGenerator.js');
@@ -180,13 +137,9 @@ export default class GenerationPipeline {
     this.running = true;
     this.paused = false;
 
-    // 请求 Wake Lock
-    this._acquireWakeLock();
+    await this._wakeLockManager.acquire();
+    this._visibilityMonitor.listen();
 
-    // 监听 visibilitychange
-    this._listenVisibility();
-
-    // 开始执行并等待完成
     try {
       await this._executeAll();
     } finally {
@@ -194,9 +147,6 @@ export default class GenerationPipeline {
     }
   }
 
-  /**
-   * 暂停管线（在 visibilitychange → hidden 时调用）
-   */
   pause() {
     if (this.running && !this.paused) {
       this.paused = true;
@@ -204,9 +154,6 @@ export default class GenerationPipeline {
     }
   }
 
-  /**
-   * 恢复管线（在 visibilitychange → visible 时调用）
-   */
   resume() {
     if (this.running && this.paused) {
       this.paused = false;
@@ -218,9 +165,6 @@ export default class GenerationPipeline {
   //  内部方法
   // ================================================================
 
-  /**
-   * 执行所有段任务
-   */
   async _executeAll() {
     let lastBase64 = null;
     const segmentResults = [];
@@ -229,22 +173,18 @@ export default class GenerationPipeline {
     for (let si = 0; si < totalSegments; si++) {
       const task = this.tasks[si];
 
-      // 等待暂停恢复
       while (this.paused) {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
 
-      // 合并上游结果图
       const imageList = [...task.imageBase64List];
       if (lastBase64 && !imageList.includes(lastBase64)) {
         console.log(`[GenerationPipeline] 段${si} 追加上游结果图`);
         imageList.push(lastBase64);
       }
 
-      // 切换 adapter 配置
       this._switchAdapter(task);
 
-      // 通知段开始
       task.status = 'running';
       if (this.callbacks.onSegmentStart) {
         this.callbacks.onSegmentStart(task, si, totalSegments);
@@ -261,32 +201,22 @@ export default class GenerationPipeline {
           this.callbacks.onSegmentDone(task);
         }
       } catch (err) {
-        // 重试 4 次后仍失败
         task.status = 'failed';
         console.error(`[GenerationPipeline] 段${si} 最终失败:`, err);
         if (this.callbacks.onSegmentFail) {
           this.callbacks.onSegmentFail(task, err);
         }
-        // 继续下一段
       }
     }
 
-    // 全部完成回调 — 传成功段数和总段数
     const succeeded = segmentResults.length;
     if (this.callbacks.onAllDone) {
       this.callbacks.onAllDone(succeeded, totalSegments);
     }
 
-    // 处理结果：创建/追加 lineage
     return segmentResults;
   }
 
-  /**
-   * 带重试的生成调用
-   * @param {SegmentTask} task
-   * @param {string[]} imageList
-   * @returns {Promise<Object>} { callTabId, type, svg, dataUrl, base64, thumbnail }
-   */
   async _retryableGenerate(task, imageList, segmentIndex = 0, totalSegments = 1) {
     let lastError = null;
 
@@ -294,14 +224,12 @@ export default class GenerationPipeline {
       try {
         if (attempt > 0) {
           console.log(`[GenerationPipeline] 段 ${task.callTabId} 第 ${attempt} 次重试...`);
-          // 通知重试（含上下文）
           if (this.callbacks.onSegmentRetry) {
             this.callbacks.onSegmentRetry(task, attempt, MAX_RETRIES, segmentIndex, totalSegments);
           }
           await backoffDelay(attempt);
         }
 
-        // 等待暂停恢复（重试期间也可能被暂停）
         while (this.paused) {
           await new Promise(resolve => setTimeout(resolve, 500));
         }
@@ -311,36 +239,13 @@ export default class GenerationPipeline {
           imageBase64List: imageList
         });
 
-        // 根据 ImageResult.type 分派
-        let resultBase64 = '';
-        if (imageResult.type === 'raster') {
-          resultBase64 = imageResult.dataUrl || '';
-        } else {
-          // SVG → base64 data URL
-          resultBase64 = svgToBase64DataUrl(imageResult.svg || '');
-        }
-
-        // 生成缩略图
-        let thumbnail = '';
-        if (resultBase64) {
-          thumbnail = await createThumbnail(resultBase64, 128);
-        }
-
-        return {
-          callTabId: task.callTabId,
-          type: imageResult.type || 'svg',
-          svg: imageResult.type === 'svg' ? imageResult.svg : '',
-          dataUrl: imageResult.type === 'raster' ? imageResult.dataUrl : '',
-          base64: resultBase64,
-          thumbnail
-        };
+        return await formatResult(imageResult, task.callTabId);
       } catch (err) {
         lastError = err;
 
-        // 判断是否可重试
         if (!isRetryable(err)) {
           console.warn(`[GenerationPipeline] 不可重试的错误:`, err.name, err.message);
-          throw err; // 不重试，直接失败
+          throw err;
         }
 
         if (attempt < MAX_RETRIES) {
@@ -349,13 +254,9 @@ export default class GenerationPipeline {
       }
     }
 
-    // 所有重试都已用完
     throw lastError;
   }
 
-  /**
-   * 切换 adapter 配置
-   */
   _switchAdapter(task) {
     const callCfg = task._callWidgetConfig;
     if (!callCfg || !callCfg.configId) return;
@@ -376,64 +277,11 @@ export default class GenerationPipeline {
     this.generator.use(cfg.adapter, perCallCfg);
   }
 
-  /**
-   * 请求 Wake Lock（防休眠）
-   */
-  async _acquireWakeLock() {
-    if ('wakeLock' in navigator) {
-      try {
-        this._wakeLock = await navigator.wakeLock.request('screen');
-        console.log('[GenerationPipeline] Wake Lock 已激活');
-        this._wakeLock.addEventListener('release', () => {
-          console.log('[GenerationPipeline] Wake Lock 已释放');
-        });
-      } catch (e) {
-        // Wake Lock 可能被用户拒绝或浏览器不支持
-        console.warn('[GenerationPipeline] Wake Lock 不可用:', e.message);
-      }
-    }
-  }
-
-  /**
-   * 释放 Wake Lock
-   */
-  async _releaseWakeLock() {
-    if (this._wakeLock) {
-      try {
-        await this._wakeLock.release();
-      } catch (e) {
-        // ignore
-      }
-      this._wakeLock = null;
-    }
-  }
-
-  /**
-   * 监听 visibilitychange
-   */
-  _listenVisibility() {
-    const handler = () => {
-      if (document.visibilityState === 'hidden') {
-        this.pause();
-      } else if (document.visibilityState === 'visible') {
-        this.resume();
-      }
-    };
-    document.addEventListener('visibilitychange', handler);
-    this._visibilityUnbind = () => document.removeEventListener('visibilitychange', handler);
-  }
-
-  /**
-   * 清理资源
-   */
   _cleanup() {
     this.running = false;
     this.paused = false;
-    if (this._visibilityUnbind) {
-      this._visibilityUnbind();
-      this._visibilityUnbind = null;
-    }
-    this._releaseWakeLock();
+    this._visibilityMonitor.unbind();
+    this._wakeLockManager.release();
     console.log('[GenerationPipeline] 管线资源已清理');
   }
 }
