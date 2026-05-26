@@ -37,17 +37,13 @@ export default class SegmentationService {
     this._state = STATE.DETECTING;
     this._wasmAvailable = false;
     this._worker = null;
-    this._pipeline = null;
     this._loadPromise = null;
-    this._lastResults = null;
-    this._lastImageDataUrl = null;
     this._wasmDisabledToastShown = false;
     this._progressToast = null;
     this._pendingResolve = null;
     this._pendingReject = null;
     this._segmentResolve = null;
     this._segmentReject = null;
-    this._useWorker = true;
 
     this._detectWasm();
   }
@@ -206,19 +202,14 @@ export default class SegmentationService {
   // ================================================================
   async segmentAtPoint(imageDataUrl, clickX, clickY) {
     if (this._state !== STATE.READY) return null;
+    if (!this._worker) return null;
 
-    // Worker 优先
-    if (this._useWorker && this._worker) {
-      try {
-        return await this._segmentViaWorker(imageDataUrl, clickX, clickY);
-      } catch (e) {
-        console.warn('[SegmentationService] Worker 推理失败，回退到主线程:', e.message);
-        this._useWorker = false;
-      }
+    try {
+      return await this._segmentViaWorker(imageDataUrl, clickX, clickY);
+    } catch (e) {
+      console.error('[SegmentationService] Worker 推理失败:', e.message);
+      return null;
     }
-
-    // 回退：主线程 inline 推理
-    return this._segmentInline(imageDataUrl, clickX, clickY);
   }
 
   async _segmentViaWorker(imageDataUrl, clickX, clickY) {
@@ -262,105 +253,6 @@ export default class SegmentationService {
     });
   }
 
-  async _segmentInline(imageDataUrl, clickX, clickY) {
-    if (!this._pipeline) {
-      console.log('[SegmentationService] 主线程加载模型…');
-      const mod = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0/dist/transformers.min.js');
-      this._pipeline = await mod.pipeline('image-segmentation', 'Xenova/segformer-b2-finetuned-ade-512-512');
-    }
-
-    let results;
-    if (imageDataUrl === this._lastImageDataUrl && this._lastResults) {
-      results = this._lastResults;
-    } else {
-      results = await this._pipeline(imageDataUrl);
-      this._lastResults = results;
-      this._lastImageDataUrl = imageDataUrl;
-    }
-
-    const img = await new Promise((resolve, reject) => {
-      const i = new Image();
-      i.onload = () => resolve(i);
-      i.onerror = reject;
-      i.src = imageDataUrl;
-    });
-
-    const found = this._findClassAtPoint(results, clickX, clickY, img.naturalWidth, img.naturalHeight);
-    if (!found) return null;
-
-    const maskPoints = this._maskToContour(found.res.mask, found.px, found.py);
-    return {
-      maskPoints,
-      classLabel: found.res.label,
-      maskWidth: found.res.mask.width,
-      maskHeight: found.res.mask.height,
-    };
-  }
-
-  _findClassAtPoint(results, cx, cy, imgW, imgH) {
-    if (!results || results.length === 0) return null;
-    const maskW = results[0].mask.width;
-    const maskH = results[0].mask.height;
-    const px = Math.floor(cx / imgW * maskW);
-    const py = Math.floor(cy / imgH * maskH);
-    const idx = py * maskW + px;
-    for (const res of results) {
-      if (res.mask.data[idx] > 128) return { res, px, py };
-    }
-    return null;
-  }
-
-  _maskToContour(mask, seedX, seedY) {
-    const { width, height, data } = mask;
-    if (seedX < 0 || seedX >= width || seedY < 0 || seedY >= height) return [];
-
-    const visited = new Uint8Array(width * height);
-    const queue = [{ x: seedX, y: seedY }];
-    visited[seedY * width + seedX] = 1;
-
-    let minX = width, minY = height, maxX = 0, maxY = 0;
-    let head = 0;
-
-    while (head < queue.length) {
-      const { x, y } = queue[head++];
-      if (x < minX) minX = x; if (y < minY) minY = y;
-      if (x > maxX) maxX = x; if (y > maxY) maxY = y;
-
-      const n4 = [[x-1,y],[x+1,y],[x,y-1],[x,y+1]];
-      for (const [nx, ny] of n4) {
-        if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
-        const ni = ny * width + nx;
-        if (!visited[ni] && data[ni] > 128) {
-          visited[ni] = 1;
-          queue.push({ x: nx, y: ny });
-        }
-      }
-    }
-
-    const pixelCount = queue.length;
-    if (pixelCount === 0) return [];
-
-    const cx = (minX + maxX) / 2;
-    const cy = (minY + maxY) / 2;
-    const numSteps = 72;
-    const points = [];
-    for (let i = 0; i < numSteps; i++) {
-      const angle = (i / numSteps) * Math.PI * 2;
-      const dx = Math.cos(angle);
-      const dy = Math.sin(angle);
-      let bestD = 0, bestX = cx, bestY = cy;
-      const maxR = Math.max(width, height);
-      for (let r = 0; r < maxR; r++) {
-        const sx = Math.round(cx + dx * r);
-        const sy = Math.round(cy + dy * r);
-        if (sx < 0 || sx >= width || sy < 0 || sy >= height) break;
-        if (visited[sy * width + sx]) { bestD = r; bestX = sx; bestY = sy; }
-      }
-      if (bestD > 0) points.push({ x: bestX, y: bestY });
-    }
-    return points;
-  }
-
   // ================================================================
   //  进度 Toast
   // ================================================================
@@ -393,8 +285,6 @@ export default class SegmentationService {
   }
 
   clearCache() {
-    this._lastResults = null;
-    this._lastImageDataUrl = null;
     if (this._worker) {
       this._worker.postMessage({ type: 'clear' });
     }
