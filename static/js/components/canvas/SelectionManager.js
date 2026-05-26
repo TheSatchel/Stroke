@@ -29,6 +29,9 @@ export default class SelectionManager {
 
     /** @type {HTMLElement|null} */
     this._btnCancel = null;
+
+    /** @type {Object|null} 标记定位上下文（用于缩放跟随） */
+    this._markerContext = null;
   }
 
   // ---- 确认栏 ----
@@ -70,10 +73,43 @@ export default class SelectionManager {
     this._selMarker.style.display = 'block';
     this._selMarker.style.left = (x / rect.width * 100) + '%';
     this._selMarker.style.top = (y / rect.height * 100) + '%';
+
+    const canvas = this._canvas;
+    const imgEl = canvas.canvasImg.querySelector('img');
+    this._markerContext = {
+      x, y,
+      containerW: rect.width,
+      containerH: rect.height,
+      natW: imgEl?.naturalWidth || rect.width,
+      natH: imgEl?.naturalHeight || rect.height,
+    };
   }
 
   hideSelMarker() {
     if (this._selMarker) this._selMarker.style.display = 'none';
+    this._markerContext = null;
+  }
+
+  clearMarkerContext() {
+    this._markerContext = null;
+  }
+
+  refreshMarker() {
+    if (!this._selMarker || !this._markerContext) return;
+    const mc = this._markerContext;
+    const canvas = this._canvas;
+    const currW = canvas.canvasImg.clientWidth;
+    const currH = canvas.canvasImg.clientHeight;
+    const svgOverlay = canvas._svgOverlay;
+    if (!svgOverlay) return;
+    const origArea = svgOverlay._computeRenderArea(mc.natW || 1, mc.natH || 1, mc.containerW || 1, mc.containerH || 1);
+    const currArea = svgOverlay._computeRenderArea(mc.natW || 1, mc.natH || 1, currW, currH);
+    const imgRelX = (mc.x - origArea.padLeft) / (origArea.renderedW || 1);
+    const imgRelY = (mc.y - origArea.padTop) / (origArea.renderedH || 1);
+    const newX = imgRelX * currArea.renderedW + currArea.padLeft;
+    const newY = imgRelY * currArea.renderedH + currArea.padTop;
+    this._selMarker.style.left = (newX / currW * 100) + '%';
+    this._selMarker.style.top = (newY / currH * 100) + '%';
   }
 
   // ---- 选区数据读写 ----
@@ -115,6 +151,7 @@ export default class SelectionManager {
     canvas._svgOverlay.updateLassoPath([]);
     canvas._segCancelToken = (canvas._segCancelToken || 0) + 1;
     if (canvas._segOverlay) canvas._segOverlay.innerHTML = '';
+    if (canvas._segHandler) canvas._segHandler.clearPreviewContext();
   }
 
   // ---- 已确认选区管理 ----
