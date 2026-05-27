@@ -88,3 +88,16 @@
   margin-bottom: 10px;
   background: var(--color-background-secondary);
 }
+
+/* ---- Mobile ---- */
+@media (max-width: 767px) {
+  .sm-radio-item {
+    font-size: 14px;
+  }
+
+  .sm-preset-save-btn,
+  .sm-preset-del-btn {
+    font-size: 13px;
+    padding: 8px 14px;
+  }
+}

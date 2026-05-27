@@ -136,3 +136,39 @@
 .section-flag-btn--done {
   color: var(--color-success);
 }
+
+/* ---- Mobile ---- */
+@media (max-width: 767px) {
+  .drag-section {
+    margin: 10px 10px 0;
+    border-radius: 10px;
+  }
+
+  .drag-section:last-child {
+    margin-bottom: 10px;
+  }
+
+  .drag-header {
+    padding: 12px 12px 12px 10px;
+    gap: 8px;
+  }
+
+  .drag-title {
+    font-size: 12px;
+  }
+
+  .drag-body {
+    padding: 12px 12px 14px;
+  }
+
+  .flag-btn {
+    width: 28px;
+    height: 28px;
+  }
+
+  .tab-menu-btn {
+    width: 28px;
+    height: 28px;
+    font-size: 18px;
+  }
+}

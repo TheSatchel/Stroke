@@ -211,3 +211,30 @@
   font-size: 10px;
   min-width: 22px;
 }
+
+/* ---- Mobile ---- */
+@media (max-width: 767px) {
+  .generate-call-bar {
+    gap: 10px;
+    margin: 8px 0 6px;
+  }
+
+  .generate-call-summary {
+    font-size: 12px;
+    padding: 6px 10px;
+    max-height: 56px;
+  }
+
+  .generate-call-result-preview {
+    border-radius: 10px;
+  }
+
+  .generate-call-result-img {
+    max-height: 200px;
+  }
+
+  .generate-call-config-select {
+    font-size: 13px;
+    padding: 7px 8px;
+  }
+}

@@ -73,3 +73,23 @@
   text-align: right;
   flex-shrink: 0;
 }
+
+/* ---- Mobile ---- */
+@media (max-width: 767px) {
+  .slider-thumb {
+    width: 22px;
+    height: 22px;
+  }
+
+  .slider-track {
+    height: 6px;
+  }
+
+  .slider-label {
+    font-size: 12px;
+  }
+
+  .slider-value {
+    font-size: 13px;
+  }
+}

@@ -49,3 +49,25 @@
   font-family: var(--font-sans);
   outline: none;
 }
+
+/* ---- Mobile ---- */
+@media (max-width: 767px) {
+  .prompt-box {
+    font-size: 14px;
+    padding: 10px 12px;
+  }
+
+  .region-block {
+    padding: 10px 12px;
+    margin-top: 10px;
+  }
+
+  .region-box {
+    font-size: 13px;
+    padding: 9px 10px;
+  }
+
+  .region-tag {
+    font-size: 11px;
+  }
+}

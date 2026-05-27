@@ -1,0 +1,55 @@
+/* ============================================================
+   ITCSS Layer 6: Components — Mobile Bottom Navigation
+   ============================================================ */
+
+.mobile-nav {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .mobile-nav {
+    display: flex;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--bp-mobile-nav-height, 56px);
+    background: var(--color-background-primary);
+    border-top: 0.5px solid var(--color-border-secondary);
+    z-index: 60;
+    align-items: center;
+    justify-content: space-around;
+    padding: 0 8px;
+    gap: 4px;
+  }
+
+  .mobile-nav__item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 4px;
+    border: none;
+    border-radius: 8px;
+    background: none;
+    color: var(--color-text-tertiary);
+    cursor: pointer;
+    font-family: var(--font-sans);
+    font-size: 10px;
+    font-weight: 500;
+    transition: color 0.15s, background 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-nav__item svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .mobile-nav__item--active {
+    color: var(--color-accent);
+    background: var(--color-accent-bg);
+  }
+}

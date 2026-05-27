@@ -24,3 +24,12 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ---- Mobile ---- */
+@media (max-width: 767px) {
+  .gen-btn {
+    padding: 12px 20px;
+    font-size: 14px;
+    border-radius: 10px;
+  }
+}

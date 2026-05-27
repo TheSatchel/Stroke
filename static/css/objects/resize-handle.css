@@ -32,3 +32,14 @@
   z-index: 999;
   display: none;
 }
+
+/* ---- Mobile ---- */
+@media (max-width: 767px) {
+  .resize-handle {
+    display: none;
+  }
+
+  .resize-ghost {
+    display: none;
+  }
+}

@@ -19,6 +19,7 @@ import LineageManager from '../locals/LineageManager.js';
 import SegmentationService from '../services/SegmentationService.js';
 import EventWirer from './EventWirer.js';
 import CanvasImageCoordinator from './CanvasImageCoordinator.js';
+import MobileNav from './MobileNav.js';
 
 const REGION_COLORS = ['#3B82F6', '#E11D48', '#F59E0B', '#10B981', '#8B5CF6', '#F97316'];
 const REGION_LABELS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -80,6 +81,8 @@ export default class App {
 
     this.settings = new SettingsModal(document.createElement('div'), this.generator);
     this.el.appendChild(this.settings.overlay);
+
+    this._mobileNav = new MobileNav(this.el);
 
     this._eventWirer.wire();
 

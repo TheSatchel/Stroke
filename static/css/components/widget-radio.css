@@ -27,3 +27,19 @@
   font-size: 12px;
   color: var(--color-text-secondary);
 }
+
+/* ---- Mobile ---- */
+@media (max-width: 767px) {
+  .widget-radio-group {
+    gap: 14px;
+  }
+
+  .radio-item {
+    font-size: 14px;
+    gap: 6px;
+  }
+
+  .radio-label {
+    font-size: 14px;
+  }
+}

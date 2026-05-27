@@ -191,3 +191,35 @@
   background: var(--color-background-secondary);
   color: var(--color-text-primary);
 }
+
+/* ---- Mobile ---- */
+@media (max-width: 767px) {
+  .add-tab-overlay {
+    align-items: flex-end;
+  }
+
+  .add-tab-popup {
+    width: 100%;
+    max-height: 85vh;
+    border-radius: 16px 16px 0 0;
+    padding: 20px 20px 24px;
+    overflow-y: auto;
+  }
+
+  .add-tab-title {
+    font-size: 16px;
+  }
+
+  .add-tab-input,
+  .add-tab-select {
+    font-size: 14px;
+    padding: 9px 10px;
+  }
+
+  .add-tab-btn-sec,
+  .add-tab-btn-pri,
+  .add-tab-btn-danger {
+    font-size: 14px;
+    padding: 9px 18px;
+  }
+}

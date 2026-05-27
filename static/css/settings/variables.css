@@ -64,4 +64,8 @@
   --color-warning-text: hsl(32, 63%, 18%);
   --color-warning-border: hsl(32, 50%, 68%);
   --color-warning-shadow: hsla(32, 90%, 38%, 0.32);
+
+  /* ---- Breakpoints (documentation only; used in @media queries) ---- */
+  --bp-mobile: 767px;
+  --bp-mobile-nav-height: 56px;
 }

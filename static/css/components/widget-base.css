@@ -55,3 +55,20 @@
 .widget-choice:focus {
   border-color: var(--color-border-primary);
 }
+
+/* ---- Mobile ---- */
+@media (max-width: 767px) {
+  .widget-text {
+    font-size: 14px;
+    padding: 10px 12px;
+  }
+
+  .widget-textarea {
+    min-height: 80px;
+  }
+
+  .widget-choice {
+    font-size: 14px;
+    padding: 9px 10px;
+  }
+}

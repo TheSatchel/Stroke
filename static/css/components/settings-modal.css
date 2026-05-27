@@ -213,3 +213,55 @@
   height: 0.5px;
   background: var(--color-border-tertiary);
 }
+
+/* ---- Mobile ---- */
+@media (max-width: 767px) {
+  .overlay {
+    border-radius: 0;
+    align-items: flex-end;
+  }
+
+  .settings-modal {
+    width: 100%;
+    max-height: 90vh;
+    border-radius: 16px 16px 0 0;
+    overflow-y: auto;
+  }
+
+  .sm-header {
+    padding: 18px 20px 16px;
+  }
+
+  .sm-title {
+    font-size: 16px;
+  }
+
+  .sm-close {
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+  }
+
+  .sm-body {
+    padding: 18px 20px 22px;
+  }
+
+  .sm-label {
+    font-size: 12px;
+  }
+
+  .sm-input {
+    font-size: 14px;
+    padding: 9px 12px;
+  }
+
+  .sm-btn-sec,
+  .sm-btn-pri {
+    font-size: 14px;
+    padding: 10px 18px;
+  }
+
+  .sm-footer {
+    padding: 0 20px 18px;
+  }
+}

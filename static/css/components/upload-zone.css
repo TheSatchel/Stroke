@@ -50,3 +50,27 @@
   font-family: var(--font-sans);
   padding: 0;
 }
+
+/* ---- Mobile ---- */
+@media (max-width: 767px) {
+  .upload-zone {
+    padding: 16px;
+    border-radius: 10px;
+  }
+
+  .uzt {
+    font-size: 14px;
+  }
+
+  .urow {
+    padding: 8px 10px;
+  }
+
+  .ufn {
+    font-size: 13px;
+  }
+
+  .rmbtn {
+    font-size: 18px;
+  }
+}

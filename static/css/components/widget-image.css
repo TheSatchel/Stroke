@@ -68,3 +68,20 @@
 .widget-image-remove:hover {
   background: var(--color-danger);
 }
+
+/* ---- Mobile ---- */
+@media (max-width: 767px) {
+  .widget-image-dropzone {
+    min-height: 120px;
+  }
+
+  .widget-image-dz-text {
+    font-size: 14px;
+  }
+
+  .widget-image-remove {
+    width: 28px;
+    height: 28px;
+    font-size: 18px;
+  }
+}

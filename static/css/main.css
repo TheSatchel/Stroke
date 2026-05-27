@@ -50,6 +50,7 @@
 @import 'components/widget-image.css';
 @import 'components/generate-call-widget.css';
 @import 'components/config-modal-extras.css';
+@import 'components/mobile-nav.css';
 
 /* ---- 7. Utilities ---- */
 @import 'utilities/utilities.css';

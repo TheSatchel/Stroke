@@ -76,3 +76,18 @@
 .tab-context-menu--right .tab-context-item {
   text-align: right;
 }
+
+/* ---- Mobile ---- */
+@media (max-width: 767px) {
+  .tab-context-menu {
+    min-width: 130px;
+    border-radius: 12px;
+    padding: 8px 8px;
+  }
+
+  .tab-context-item {
+    font-size: 13px;
+    padding: 10px 14px;
+    border-radius: 8px;
+  }
+}

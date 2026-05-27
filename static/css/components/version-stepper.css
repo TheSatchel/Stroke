@@ -107,3 +107,28 @@
   color: var(--color-white);
   font-weight: 600;
 }
+
+/* ---- Mobile ---- */
+@media (max-width: 767px) {
+  .ver-step-arrow {
+    width: 30px;
+    height: 30px;
+    font-size: 13px;
+  }
+
+  .ver-num {
+    min-width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+
+  .ver-dot {
+    width: 8px;
+    height: 8px;
+  }
+
+  .ver-stepper {
+    gap: 6px;
+    margin-top: 7px;
+  }
+}

@@ -50,3 +50,27 @@
 .toggle-track--on .toggle-knob {
   transform: translateX(16px);
 }
+
+/* ---- Mobile ---- */
+@media (max-width: 767px) {
+  .toggle-track {
+    width: 44px;
+    height: 26px;
+    border-radius: 13px;
+  }
+
+  .toggle-knob {
+    width: 22px;
+    height: 22px;
+    top: 2px;
+    left: 2px;
+  }
+
+  .toggle-track--on .toggle-knob {
+    transform: translateX(18px);
+  }
+
+  .toggle-label {
+    font-size: 14px;
+  }
+}

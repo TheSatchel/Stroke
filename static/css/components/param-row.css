@@ -46,3 +46,19 @@ select.ps {
   background: var(--color-accent-bg);
   color: var(--color-accent);
 }
+
+/* ---- Mobile ---- */
+@media (max-width: 767px) {
+  .param-row {
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .param-name {
+    font-size: 13px;
+  }
+
+  .param-val {
+    font-size: 13px;
+  }
+}

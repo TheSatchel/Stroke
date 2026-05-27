@@ -42,3 +42,16 @@
   background: var(--color-background-secondary);
   color: var(--color-text-primary);
 }
+
+/* ---- Mobile ---- */
+@media (max-width: 767px) {
+  .right-footer {
+    padding: 14px 16px 16px;
+  }
+
+  .setting-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+  }
+}

@@ -141,3 +141,32 @@
   background: var(--color-danger-bg);
   color: var(--color-danger);
 }
+
+/* ---- Mobile ---- */
+@media (max-width: 767px) {
+  .hist-item {
+    margin-bottom: 8px;
+  }
+
+  .hist-thumb {
+    aspect-ratio: 4/3;
+  }
+
+  .hist-meta {
+    padding: 7px 10px 8px;
+  }
+
+  .hist-label {
+    font-size: 12px;
+  }
+
+  .hist-time {
+    font-size: 11px;
+  }
+
+  .hist-search-input {
+    font-size: 13px;
+    padding: 8px 10px;
+    min-height: 52px;
+  }
+}

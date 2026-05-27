@@ -38,3 +38,18 @@
   background: var(--color-background-secondary);
   color: var(--color-text-primary);
 }
+
+/* ---- Mobile ---- */
+@media (max-width: 767px) {
+  .col-header {
+    padding: 14px 16px 12px;
+    font-size: 12px;
+  }
+
+  .hist-new-project-btn,
+  .add-tab-btn {
+    padding: 5px 12px;
+    font-size: 12px;
+    border-radius: 10px;
+  }
+}
