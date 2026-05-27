@@ -21,6 +21,8 @@ body {
 @media (max-width: 767px) {
   body {
     place-items: stretch;
+    touch-action: manipulation;
+    overscroll-behavior: none;
   }
 
   #app {
