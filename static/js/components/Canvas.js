@@ -3,7 +3,7 @@
  *
  * 初始化子模块：ToolManager, SelectionManager, ImageManager,
  * SegmentationHandler, LassoHandler, SvgOverlay。
- * 鼠标事件路由到各 Handler。
+ * 同时处理 mouse 和 touch 事件路由。
  */
 import { el } from '../utils/DOM.js';
 import { showToast } from '../utils/Toast.js';
@@ -38,6 +38,7 @@ export default class Canvas {
     this._imageManager = new ImageManager(this);
     this._segHandler = new SegmentationHandler(this);
     this._lassoHandler = new LassoHandler(this);
+    this._touchId = null;
 
     if (this._segService.state === 'WASM_DISABLED' && !this._segService._wasmDisabledToastShown) {
       this._segService._wasmDisabledToastShown = true;
@@ -77,9 +78,14 @@ export default class Canvas {
     this.canvasArea = el('div', 'canvas-area');
     this.canvasImg = el('div', 'canvas-img', { id: 'canvas' });
 
-    this.canvasImg.addEventListener('mousedown', e => this._onMouseDown(e));
-    this.canvasImg.addEventListener('mousemove', e => this._onMouseMove(e));
-    this.canvasImg.addEventListener('mouseup', e => this._onMouseUp(e));
+    this.canvasImg.addEventListener('mousedown', e => this._onDown(e));
+    this.canvasImg.addEventListener('mousemove', e => this._onMove(e));
+    this.canvasImg.addEventListener('mouseup', e => this._onUp(e));
+
+    this.canvasImg.addEventListener('touchstart', e => this._onDown(e), { passive: false });
+    this.canvasImg.addEventListener('touchmove', e => this._onMove(e), { passive: false });
+    this.canvasImg.addEventListener('touchend', e => this._onUp(e));
+    this.canvasImg.addEventListener('touchcancel', () => { this._touchId = null; });
 
     this.cph = this._imageManager.createPlaceholder();
     this.canvasImg.appendChild(this.cph);
@@ -110,9 +116,31 @@ export default class Canvas {
   }
 
   // ================================================================
-  //  鼠标事件路由
+  //  统一坐标提取 (mouse + touch)
   // ================================================================
-  _onMouseDown(e) {
+  _extractXY(e) {
+    if (e.touches) {
+      if (e.type === 'touchend' || e.type === 'touchcancel') return null;
+      for (let i = 0; i < e.touches.length; i++) {
+        if (e.touches[i].identifier === this._touchId) {
+          return { clientX: e.touches[i].clientX, clientY: e.touches[i].clientY };
+        }
+      }
+      return null;
+    }
+    return { clientX: e.clientX, clientY: e.clientY };
+  }
+
+  // ================================================================
+  //  事件路由
+  // ================================================================
+  _onDown(e) {
+    if (e.touches) {
+      e.preventDefault();
+      if (this._touchId !== null) return;
+      this._touchId = e.touches[0] ? e.touches[0].identifier : null;
+    }
+
     if (e.target.closest('.canvas-confirm-btn')) return;
 
     if (!this._isShowingUserImage) {
@@ -122,29 +150,52 @@ export default class Canvas {
       if (this.onCanvasImage) this.onCanvasImage(this._generatedImageDataUrl);
     }
 
+    const xy = this._extractXY(e);
+    if (!xy) return;
     const rect = this.canvasImg.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = xy.clientX - rect.left;
+    const y = xy.clientY - rect.top;
 
     if (this.tool === 'sel') {
-      e.preventDefault();
       this._segHandler.handlePointSelect(x, y, rect);
     } else if (this.tool === 'las') {
       this._lassoHandler.onMouseDown(x, y);
     }
   }
 
-  _onMouseMove(e) {
+  _onMove(e) {
+    if (e.touches) {
+      e.preventDefault();
+    }
+
     if (e.target.closest('.canvas-confirm-btn')) return;
     if (this.tool !== 'las' || !this._lassoHandler.isDrawing) return;
 
+    const xy = this._extractXY(e);
+    if (!xy) return;
     const rect = this.canvasImg.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = xy.clientX - rect.left;
+    const y = xy.clientY - rect.top;
     this._lassoHandler.onMouseMove(x, y);
   }
 
-  _onMouseUp(e) {
+  _onUp(e) {
+    if (e.touches) {
+      if (this._touchId !== null) {
+        let found = false;
+        if (e.changedTouches) {
+          for (let i = 0; i < e.changedTouches.length; i++) {
+            if (e.changedTouches[i].identifier === this._touchId) {
+              found = true;
+              break;
+            }
+          }
+        }
+        if (!found) return;
+        this._touchId = null;
+      }
+    }
+
     if (e.target.closest('.canvas-confirm-btn')) return;
     if (this.tool !== 'las' || !this._lassoHandler.isDrawing) return;
     this._lassoHandler.onMouseUp();

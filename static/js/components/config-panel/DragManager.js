@@ -3,17 +3,20 @@
  *
  * 负责 dragstart/dragend/dragover/drop 事件、ghost 预览、
  * 锁定元素保护（prompt 首位、generate_call 末位）、order 同步。
+ * 同时支持 touch 拖拽（降级实现，用于平板等触控设备）。
  */
+import { el } from '../../utils/DOM.js';
 
 export default class DragManager {
   constructor(panel) {
     /** @type {import('./ConfigPanel.js').default} */
     this.panel = panel;
     this.dragSrc = null;
+    this._touchDrag = null;
   }
 
   // ================================================================
-  //  拖拽事件处理
+  //  Mouse 拖拽事件处理
   // ================================================================
   dStart(e) {
     const handle = e.currentTarget;
@@ -23,7 +26,6 @@ export default class DragManager {
       e.preventDefault();
       return;
     }
-    // 固定元素不可拖拽
     const elmId = elm.id.replace('sec-', '');
     const def = this.panel.tabsConfig.find(t => t.id === elmId);
     if (def && (def.id === 'prompt' || def.type === 'generate_call')) {
@@ -67,13 +69,11 @@ export default class DragManager {
         const srcIndex = allChildren.indexOf(src);
         const tgtIndex = allChildren.indexOf(tgt);
 
-        // 模拟移动后的顺序
         const simulated = allChildren.map(c => c.id.replace('sec-', ''));
         const moved = simulated.splice(srcIndex, 1)[0];
         const insertAt = srcIndex < tgtIndex ? tgtIndex : tgtIndex;
         simulated.splice(insertAt, 0, moved);
 
-        // 验证：第一个必须是 prompt，最后一个必须是 generate_call
         const firstDef = tabsConfig.find(t => t.id === simulated[0]);
         const lastDef = tabsConfig.find(t => t.id === simulated[simulated.length - 1]);
         if (!firstDef || firstDef.id !== 'prompt') {
@@ -95,6 +95,66 @@ export default class DragManager {
   }
 
   // ================================================================
+  //  Touch 拖拽事件处理 (降级，与 mouse DnD 共享 _performReorder)
+  // ================================================================
+  tStart(e) {
+    const elm = e.currentTarget.closest('.drag-section');
+    if (!elm) return;
+    if (elm.classList.contains('drag-section--flagged')) return;
+    const elmId = elm.id.replace('sec-', '');
+    const def = this.panel.tabsConfig.find(t => t.id === elmId);
+    if (def && (def.id === 'prompt' || def.type === 'generate_call')) return;
+
+    const touch = e.touches[0];
+    const ghost = el('div', '', {
+      style: 'position:fixed;z-index:999;opacity:0.7;pointer-events:none;background:var(--color-background-primary);border:1px solid var(--color-accent-ring);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--color-text-primary);box-shadow:0 4px 12px rgba(0,0,0,0.15)',
+      text: elm.querySelector('.drag-title')?.textContent || ''
+    });
+    ghost.style.left = (touch.clientX - 60) + 'px';
+    ghost.style.top = (touch.clientY - 15) + 'px';
+    document.body.appendChild(ghost);
+
+    elm.classList.add('drag-section--dragging');
+    this._touchDrag = { elm, ghost, startY: touch.clientY, moved: false };
+  }
+
+  tMove(e) {
+    if (!this._touchDrag) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    this._touchDrag.ghost.style.left = (touch.clientX - 60) + 'px';
+    this._touchDrag.ghost.style.top = (touch.clientY - 15) + 'px';
+    this._touchDrag.moved = true;
+
+    const hovering = document.elementFromPoint(touch.clientX, touch.clientY);
+    const sec = hovering?.closest('.drag-section');
+    this.panel.secList.querySelectorAll('.drag-section').forEach(s => s.classList.remove('drag-section--dragover'));
+    if (sec && sec !== this._touchDrag.elm && !sec.classList.contains('drag-section--flagged')) {
+      sec.classList.add('drag-section--dragover');
+    }
+  }
+
+  tEnd(e) {
+    if (!this._touchDrag) return;
+    const touch = e.changedTouches[0];
+    this._touchDrag.elm.classList.remove('drag-section--dragging');
+
+    if (this._touchDrag.moved && touch) {
+      const hovering = document.elementFromPoint(touch.clientX, touch.clientY);
+      const sec = hovering?.closest('.drag-section');
+      if (sec && sec !== this._touchDrag.elm && !sec.classList.contains('drag-section--flagged')) {
+        const tid = sec.id.replace('sec-', '');
+        this.dragSrc = this._touchDrag.elm.id;
+        this.dDrop({ preventDefault: () => {} }, tid);
+      }
+    }
+
+    this.panel.secList.querySelectorAll('.drag-section').forEach(s => s.classList.remove('drag-section--dragover'));
+    if (this._touchDrag.ghost) this._touchDrag.ghost.remove();
+    this._touchDrag = null;
+  }
+
+  // ================================================================
   //  Order 同步
   // ================================================================
   _syncTabOrder() {
@@ -109,15 +169,8 @@ export default class DragManager {
   }
 
   // ================================================================
-  //  面板宽度持久化（vw 比例 — 随窗口缩放）
+  //  面板宽度持久化（vw 比例）
   // ================================================================
-  /**
-   * 为 App 安装左右拖拽手柄的 resize 逻辑。
-   * 拖拽时使用 px 获得即时反馈，松开后转为 vw 比例并持久化。
-   * @param {HTMLElement} appEl - 根 .app 容器
-   * @param {HTMLElement} handleLeft - 左侧拖拽手柄
-   * @param {HTMLElement} handleRight - 右侧拖拽手柄
-   */
   static installResizeHandles(appEl, handleLeft, handleRight) {
     const ghost = document.createElement('div');
     ghost.className = 'resize-ghost';
@@ -133,13 +186,11 @@ export default class DragManager {
       };
     };
 
-    // px 模式：拖拽时使用，响应快
     const setSizesPx = (leftMax, rightMax) => {
       appEl.style.gridTemplateColumns =
         `minmax(140px,${leftMax}px) 4px minmax(200px,1fr) 4px minmax(140px,${rightMax}px)`;
     };
 
-    // vw 模式：随窗口等比缩放
     const setSizesVw = (leftVw, rightVw) => {
       appEl.style.gridTemplateColumns =
         `minmax(140px,${leftVw.toFixed(2)}vw) 4px minmax(200px,1fr) 4px minmax(140px,${rightVw.toFixed(2)}vw)`;
@@ -155,7 +206,6 @@ export default class DragManager {
       } catch (e) { /* ignore */ }
     };
 
-    // 恢复已保存比例（兼容旧 px 格式）
     let restored = false;
     try {
       const raw = localStorage.getItem('stroke_panel_sizes');
@@ -165,7 +215,6 @@ export default class DragManager {
           setSizesVw(saved.lv, saved.rv);
           restored = true;
         } else if (saved && typeof saved.left === 'number' && typeof saved.right === 'number') {
-          // 旧格式迁移
           const lv = vwFromPx(Math.max(saved.left, 140));
           const rv = vwFromPx(Math.max(saved.right, 140));
           setSizesVw(lv, rv);
@@ -175,7 +224,6 @@ export default class DragManager {
       }
     } catch (e) { /* ignore */ }
 
-    // 无存档时使用默认比例（2560px 下约 190px）
     if (!restored) {
       setSizesVw(7.42, 7.42);
     }
@@ -184,25 +232,25 @@ export default class DragManager {
       let dragging = false;
       let startX = 0;
       let startCols = null;
+      let touchId = null;
       const minW = isLeft ? 140 : 140;
       const maxW = isLeft ? 340 : 480;
 
-      handleEl.addEventListener('mousedown', (e) => {
-        e.preventDefault();
+      const onStart = (clientX) => {
         dragging = true;
-        startX = e.clientX;
+        startX = clientX;
         startCols = getRenderedWidths();
         handleEl.classList.add('active');
         ghost.style.display = 'block';
-        ghost.style.left = e.clientX + 'px';
+        ghost.style.left = clientX + 'px';
         document.body.style.userSelect = 'none';
         document.body.style.cursor = 'col-resize';
-      });
+      };
 
-      const onMove = (e) => {
+      const onMove = (clientX) => {
         if (!dragging) return;
-        ghost.style.left = e.clientX + 'px';
-        const dx = e.clientX - startX;
+        ghost.style.left = clientX + 'px';
+        const dx = clientX - startX;
         if (isLeft) {
           const newLeft = Math.round(Math.max(minW, Math.min(maxW, startCols.left + dx)));
           setSizesPx(newLeft, startCols.right);
@@ -212,7 +260,7 @@ export default class DragManager {
         }
       };
 
-      const onUp = () => {
+      const onEnd = () => {
         if (!dragging) return;
         dragging = false;
         handleEl.classList.remove('active');
@@ -224,14 +272,47 @@ export default class DragManager {
         setSizesVw(vwFromPx(ren.left), vwFromPx(ren.right));
       };
 
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
+      handleEl.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        onStart(e.clientX);
+      });
+
+      handleEl.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (e.touches[0]) {
+          touchId = e.touches[0].identifier;
+          onStart(e.touches[0].clientX);
+        }
+      }, { passive: false });
+
+      document.addEventListener('mousemove', (e) => onMove(e.clientX));
+      document.addEventListener('mouseup', onEnd);
+
+      document.addEventListener('touchmove', (e) => {
+        if (!dragging || touchId === null) return;
+        for (let i = 0; i < e.touches.length; i++) {
+          if (e.touches[i].identifier === touchId) {
+            onMove(e.touches[i].clientX);
+            return;
+          }
+        }
+      }, { passive: false });
+
+      document.addEventListener('touchend', (e) => {
+        if (touchId === null) return;
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === touchId) {
+            onEnd();
+            touchId = null;
+            return;
+          }
+        }
+      });
     };
 
     makeDragger(handleLeft, true);
     makeDragger(handleRight, false);
 
-    // 窗口缩放时重新应用 vw 比例
     window.addEventListener('resize', () => {
       try {
         const raw = localStorage.getItem('stroke_panel_sizes');

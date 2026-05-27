@@ -25,6 +25,7 @@
   position: relative;
   overflow: hidden;
   cursor: crosshair;
+  touch-action: none;
 }
 
 .canvas-img-delete {
@@ -219,6 +220,7 @@
     aspect-ratio: 1;
     border-radius: 0;
     border: none;
+    touch-action: none;
   }
 
   .canvas-confirm-bar {

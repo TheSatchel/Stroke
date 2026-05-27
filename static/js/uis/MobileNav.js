@@ -32,14 +32,18 @@ export default class MobileNav {
     this.appEl = appEl;
     this._active = 'canvas';
     this._isMobile = window.matchMedia('(max-width: 767px)').matches;
+    this.container = null;
+    this._backdrop = null;
+    this._resizeHandler = null;
 
     this._render();
     this._listenResize();
   }
 
   _render() {
-    this.container = el('nav', 'mobile-nav');
     if (!this._isMobile) return;
+
+    this.container = el('nav', 'mobile-nav');
 
     const tabs = [
       { key: 'history', label: '历史' },
@@ -65,13 +69,15 @@ export default class MobileNav {
     this._backdrop = el('div', 'mobile-panel-backdrop');
     this._backdrop.addEventListener('click', () => this._closePanels());
     this.appEl.appendChild(this._backdrop);
+
+    this._applyVisibility();
   }
 
   _listenResize() {
-    window.matchMedia('(max-width: 767px)').addEventListener('change', (e) => {
+    this._resizeHandler = (e) => {
       this._isMobile = e.matches;
       if (e.matches) {
-        if (!this.container.parentNode) {
+        if (!this.container || !this.container.parentNode) {
           this._render();
         } else {
           this.container.style.display = '';
@@ -82,7 +88,23 @@ export default class MobileNav {
         if (this.container) this.container.style.display = 'none';
         if (this._backdrop) this._backdrop.classList.remove('mobile-panel-backdrop--visible');
       }
-    });
+    };
+    window.matchMedia('(max-width: 767px)').addEventListener('change', this._resizeHandler);
+  }
+
+  destroy() {
+    if (this._resizeHandler) {
+      window.matchMedia('(max-width: 767px)').removeEventListener('change', this._resizeHandler);
+      this._resizeHandler = null;
+    }
+    if (this.container && this.container.parentNode) {
+      this.container.remove();
+    }
+    if (this._backdrop && this._backdrop.parentNode) {
+      this._backdrop.remove();
+    }
+    this.container = null;
+    this._backdrop = null;
   }
 
   switchTo(panel) {
@@ -96,7 +118,6 @@ export default class MobileNav {
 
     const left = this.appEl.querySelector('.col-left');
     const right = this.appEl.querySelector('.col-right');
-    const mid = this.appEl.querySelector('.col-mid');
 
     this._closePanels();
 
@@ -111,7 +132,6 @@ export default class MobileNav {
         break;
       case 'canvas':
       default:
-        if (mid) mid.style.display = '';
         break;
     }
   }
@@ -125,7 +145,7 @@ export default class MobileNav {
   }
 
   _updateButtons() {
-    if (!this.container) return;
+    if (!this.container || !this.container.parentNode) return;
     const btns = this.container.querySelectorAll('.mobile-nav__item');
     btns.forEach(btn => {
       btn.classList.toggle('mobile-nav__item--active', btn.dataset.panel === this._active);

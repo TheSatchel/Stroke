@@ -96,7 +96,7 @@ export default class ImageManager {
 
     canvas._segOverlay = null;
     canvas.canvasImg.innerHTML = '';
-    canvas.canvasImg.innerHTML = `<img src="${dataUrl}" draggable="false" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;border-radius:var(--border-radius-lg);-webkit-user-drag:none;user-select:none" />`;
+    canvas.canvasImg.innerHTML = `<img src="${dataUrl}" draggable="false" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;border-radius:var(--border-radius-lg);-webkit-user-drag:none;user-select:none;pointer-events:none" />`;
 
     const delBtn = el('button', 'canvas-img-delete', {
       html: '×',
