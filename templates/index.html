@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <script>window.__PATH_PREFIX__="{{ PATH_PREFIX }}";(function(p){if(!p)return;var A=function(u){return u&&typeof u==='string'&&u[0]==='/'&&u[1]!=='/'};var P=function(u){return A(u)?p+u:u};
+  <script>window.__PATH_PREFIX__="{{ PATH_PREFIX }}";(function(p){if(!p)return;var A=function(u){return u&&typeof u==='string'&&u[0]==='/'&&u[1]!=='/'};var P=function(u){if(!A(u))return u;if(u===p||u.indexOf(p+'/')===0)return u;return p+u};
 var _f=window.fetch;window.fetch=function(u,o){if(typeof u==='string')return _f(P(u),o);if(u&&typeof u.url==='string')return _f(new Request(P(u.url),u),o);return _f(u,o)};
 var _x=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){return _x.call(this,m,P(u))};
 if(typeof Worker!=='undefined'){var _W=window.Worker;window.Worker=function(u,o){return new _W(P(u),o)}}
