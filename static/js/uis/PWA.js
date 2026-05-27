@@ -5,7 +5,8 @@
 // 注册 Service Worker
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+        const pfx = window.__PATH_PREFIX__ || '';
+        navigator.serviceWorker.register(pfx + '/sw.js', { scope: pfx + '/' })
             .catch(err => {
                 console.error('Service Worker 注册失败:', err);
             });
