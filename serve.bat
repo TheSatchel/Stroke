@@ -18,19 +18,23 @@ if %errorlevel% neq 0 (
 echo ========================================
 echo   FastAPI Jinja2 PWA
 echo ========================================
-echo   1. 开发模式 (uvicorn --reload)
+echo   1. 本地开发模式 (uvicorn --reload)
 echo   2. 生产模式 ASGI (uvicorn)
 echo   3. 生产模式 WSGI (waitress)
-echo   4. 安装依赖
-echo   5. 退出
+echo   4. CDN 模式 ASGI (prefix^=/image)
+echo   5. CDN 模式 WSGI (prefix^=/image)
+echo   6. 安装依赖
+echo   7. 退出
 echo ========================================
-set /p choice="请选择 [1-5]: "
+set /p choice="请选择 [1-7]: "
 
 if "%choice%"=="1" goto dev
 if "%choice%"=="2" goto prod_asgi
 if "%choice%"=="3" goto prod_wsgi
-if "%choice%"=="4" goto install
-if "%choice%"=="5" exit /b 0
+if "%choice%"=="4" goto cdn_asgi
+if "%choice%"=="5" goto cdn_wsgi
+if "%choice%"=="6" goto install
+if "%choice%"=="7" exit /b 0
 goto menu
 
 :install
@@ -42,7 +46,7 @@ goto menu
 
 :dev
 echo.
-echo [开发模式]
+echo [本地开发模式]
 python development.py
 pause
 goto menu
@@ -57,6 +61,22 @@ goto menu
 :prod_wsgi
 echo.
 echo [生产模式 - WSGI]
+python serve.py --wsgi
+pause
+goto menu
+
+:cdn_asgi
+echo.
+echo [CDN 模式 - ASGI]  path_prefix=/image
+set PATH_PREFIX=/image
+python serve.py --asgi
+pause
+goto menu
+
+:cdn_wsgi
+echo.
+echo [CDN 模式 - WSGI]  path_prefix=/image
+set PATH_PREFIX=/image
 python serve.py --wsgi
 pause
 goto menu

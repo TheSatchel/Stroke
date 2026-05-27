@@ -2,6 +2,13 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <script>window.__PATH_PREFIX__="{{ PATH_PREFIX }}";(function(p){if(!p)return;var A=function(u){return u&&typeof u==='string'&&u[0]==='/'&&u[1]!=='/'};var P=function(u){return A(u)?p+u:u};
+var _f=window.fetch;window.fetch=function(u,o){if(typeof u==='string')return _f(P(u),o);if(u&&typeof u.url==='string')return _f(new Request(P(u.url),u),o);return _f(u,o)};
+var _x=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){return _x.call(this,m,P(u))};
+if(typeof Worker!=='undefined'){var _W=window.Worker;window.Worker=function(u,o){return new _W(P(u),o)}}
+if(navigator.serviceWorker){var _r=navigator.serviceWorker.register;navigator.serviceWorker.register=function(u,o){return _r.call(navigator.serviceWorker,P(u),o)}}
+var d=Object.getOwnPropertyDescriptor(HTMLImageElement.prototype,'src');if(d&&d.set){Object.defineProperty(HTMLImageElement.prototype,'src',{get:d.get,set:function(v){d.set.call(this,P(v))}})}
+new MutationObserver(function(ms){ms.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType!==1)return;['src','href','srcset'].forEach(function(a){var v=n.getAttribute(a);if(v)n.setAttribute(a,P(v))})})})}).observe(document.documentElement,{childList:true,subtree:true})})(window.__PATH_PREFIX__);</script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ title }} — {{ APP_NAME }}</title>
   <meta name="description" content="{{ description }}">
@@ -11,12 +18,12 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="{{ PWA_NAME }}">
-  <link rel="apple-touch-icon" href="/static/img/icon-192x192.png">
-  <link rel="apple-touch-icon" sizes="512x512" href="/static/img/icon-512x512.png">
-  <link rel="icon" type="image/png" sizes="192x192" href="/static/img/icon-192x192.png">
-  <link rel="icon" type="image/png" sizes="512x512" href="/static/img/icon-512x512.png">
-  <link rel="mask-icon" href="/static/img/icon-512x512-maskable.png" color="{{ PWA_THEME_COLOR }}">
-  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="{{ PATH_PREFIX }}/static/img/icon-192x192.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="{{ PATH_PREFIX }}/static/img/icon-512x512.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="{{ PATH_PREFIX }}/static/img/icon-192x192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="{{ PATH_PREFIX }}/static/img/icon-512x512.png">
+  <link rel="mask-icon" href="{{ PATH_PREFIX }}/static/img/icon-512x512-maskable.png" color="{{ PWA_THEME_COLOR }}">
+  <link rel="manifest" href="{{ PATH_PREFIX }}/manifest.json">
 
   <!-- CSS Variables (workspace design tokens) -->
   <style>
@@ -120,7 +127,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="{{ PATH_PREFIX }}/static/css/main.css">
 </head>
 <body>
 
@@ -128,9 +135,9 @@
 
 <div id="app"></div>
 
-<script type="module" src="/static/js/uis/App.js"></script>
-<script src="/static/js/uis/PWA.js"></script>
-<script type="module" src="/static/js/main.js"></script>
+<script type="module" src="{{ PATH_PREFIX }}/static/js/uis/App.js"></script>
+<script src="{{ PATH_PREFIX }}/static/js/uis/PWA.js"></script>
+<script type="module" src="{{ PATH_PREFIX }}/static/js/main.js"></script>
 <script>window.APP_VERSION = "{{ APP_VERSION }}";</script>
 </body>
 </html>

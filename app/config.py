@@ -41,6 +41,10 @@ class Settings:
         return self._data.get("app", {}).get("debug", False)
 
     @property
+    def PATH_PREFIX(self) -> str:
+        return os.getenv("PATH_PREFIX", self._data.get("app", {}).get("path_prefix", ""))
+
+    @property
     def TEMPLATE_DIR(self) -> str:
         return "templates"
 

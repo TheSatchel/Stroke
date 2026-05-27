@@ -19,5 +19,6 @@ def setup_templates(app: FastAPI) -> Jinja2Templates:
     templates.env.globals["PWA_NAME"] = settings.PWA_NAME
     templates.env.globals["PWA_THEME_COLOR"] = settings.PWA_THEME_COLOR
     templates.env.globals["DEBUG"] = settings.DEBUG
+    templates.env.globals["PATH_PREFIX"] = settings.PATH_PREFIX
 
     return templates
