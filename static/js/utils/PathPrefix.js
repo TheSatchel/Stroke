@@ -25,7 +25,9 @@
 
   function prefixUrl(url) {
     if (typeof url !== 'string') return url;
-    return isAbsolutePath(url) ? prefix + url : url;
+    if (!isAbsolutePath(url)) return url;
+    if (url === prefix || url.startsWith(prefix + '/')) return url;
+    return prefix + url;
   }
 
   // ---- fetch ----
