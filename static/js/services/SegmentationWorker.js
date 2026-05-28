@@ -19,11 +19,19 @@ let _lastImageDataUrl = null;
 let _lastResults = null;
 
 async function loadModel() {
-  const TR_JS_URL = new URL('../vendor/transformers-3.0.0.min.js', import.meta.url).href;
-  const { pipeline, env } = await import(TR_JS_URL);
+  let TR_JS;
+  const LOCAL_URL = new URL('../vendor/transformers-3.0.0.min.js', import.meta.url).href;
+  const CDN_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0/dist/transformers.min.js';
+
+  try {
+    TR_JS = await import(LOCAL_URL);
+  } catch (_e) {
+    TR_JS = await import(CDN_URL);
+  }
+
+  const { pipeline, env } = TR_JS;
 
   // 从 worker URL 推算模型目录，自动适配普通 / CDN 模式
-  // env.remotePathTemplate 只支持 {model} 和 {revision}，文件名由库内部拼接
   const MODELS_BASE = new URL('../../models/', import.meta.url).href;
   env.remoteHost = MODELS_BASE;
   env.remotePathTemplate = '{model}/';

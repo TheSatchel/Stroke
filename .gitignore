@@ -32,5 +32,8 @@ build/
 # AI Model files (downloaded separately)
 static/models/
 
+# Vendor libraries (downloaded on setup)
+static/js/vendor/
+
 # Source maps
 *.map

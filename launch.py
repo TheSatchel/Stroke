@@ -18,10 +18,13 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from urllib.request import urlretrieve
 
 
 ROOT = Path(__file__).resolve().parent
 MODEL_FILE = ROOT / "static" / "models" / "Xenova" / "segformer-b2-finetuned-ade-512-512" / "onnx" / "model_quantized.onnx"
+VENDOR_FILE = ROOT / "static" / "js" / "vendor" / "transformers-3.0.0.min.js"
+TR_JS_CDN = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0/dist/transformers.min.js"
 
 
 def install_deps():
@@ -36,6 +39,21 @@ def install_deps():
             [sys.executable, "-m", "pip", "install", "-r", "requirements.txt"]
         )
     print("依赖安装完成.\n")
+
+
+def check_vendor():
+    if VENDOR_FILE.exists():
+        return True
+    print("Transformers.js 库未找到，正在下载 (~0.7 MB)...")
+    VENDOR_FILE.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        urlretrieve(TR_JS_CDN, VENDOR_FILE)
+        print("  下载完成.")
+        return True
+    except Exception as e:
+        print(f"  下载失败: {e}")
+        print("  前端将自动回退到 CDN 加载，不影响使用.")
+        return False
 
 
 def check_model():
@@ -82,7 +100,7 @@ def show_menu():
     print("  4. CDN 模式 ASGI (prefix=/image)")
     print("  5. CDN 模式 WSGI (prefix=/image)")
     print("  6. 安装依赖")
-    print("  7. 下载 AI 分割模型")
+    print("  7. 下载 AI 分割模型 & 库文件")
     print("  8. 退出")
     print("=" * 48)
 
@@ -93,31 +111,26 @@ def show_menu():
             print()
             return
 
-        if choice == "1":
+        if choice in ("1", "2", "3", "4", "5"):
+            check_vendor()
             check_model()
-            start_server("dev")
-            break
-        elif choice == "2":
-            check_model()
-            start_server("asgi")
-            break
-        elif choice == "3":
-            check_model()
-            start_server("wsgi")
-            break
-        elif choice == "4":
-            check_model()
-            start_server("asgi", "/image")
-            break
-        elif choice == "5":
-            check_model()
-            start_server("wsgi", "/image")
+            if choice == "1":
+                start_server("dev")
+            elif choice == "2":
+                start_server("asgi")
+            elif choice == "3":
+                start_server("wsgi")
+            elif choice == "4":
+                start_server("asgi", "/image")
+            elif choice == "5":
+                start_server("wsgi", "/image")
             break
         elif choice == "6":
             install_deps()
             show_menu()
             break
         elif choice == "7":
+            check_vendor()
             check_model()
             show_menu()
             break
@@ -138,16 +151,16 @@ def main():
     parser.add_argument("--download-model", action="store_true", help="仅下载 AI 分割模型后退出")
     args = parser.parse_args()
 
-    # 纯下载模式
     if args.download_model:
+        check_vendor()
         check_model()
         return
 
-    # 命令行参数启动（跳过菜单）
     has_mode = args.dev or args.asgi or args.wsgi
     if has_mode:
         if args.install:
             install_deps()
+        check_vendor()
         check_model()
 
         mode = "dev" if args.dev else ("wsgi" if args.wsgi else "asgi")
@@ -158,7 +171,6 @@ def main():
             print("\n服务器已停止.")
         return
 
-    # 无参数 → 交互菜单
     show_menu()
 
 
