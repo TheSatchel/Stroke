@@ -39,6 +39,21 @@ REQUIRED_FILES = [
     "onnx/model_quantized.onnx",
 ]
 
+UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) transformers.js/3.0.0"
+
+
+def build_urls(filename: str):
+    urls = []
+    for base, is_cdn in MIRRORS:
+        if is_cdn:
+            url = base.replace("{repo}", HF_REPO.replace("/", "-"))
+            url = f"{url}/{filename}"
+        else:
+            url = f"{base}/{HF_REPO}/resolve/{HF_BRANCH}/{filename}"
+        urls.append((url, base))
+    return urls
+
+
 def download_file(filename: str, dest: Path) -> bool:
     if dest.exists() and dest.stat().st_size > 0:
         size_mb = dest.stat().st_size / (1024 * 1024)
