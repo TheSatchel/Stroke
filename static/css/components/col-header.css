@@ -43,6 +43,7 @@
 @media (max-width: 767px) {
   .col-header {
     padding: 14px 16px 12px;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 14px);
     font-size: 12px;
   }
 

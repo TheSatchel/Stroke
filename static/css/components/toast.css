@@ -58,14 +58,21 @@
 /* ---- Mobile ---- */
 @media (max-width: 767px) {
   .toast-container {
-    bottom: calc(var(--bp-mobile-nav-height, 56px) + 8px);
+    top: calc(env(safe-area-inset-top, 0px) + 8px);
+    bottom: auto;
     left: 8px;
     right: 8px;
     max-width: none;
+    flex-direction: column;
   }
 
   .toast-item {
     font-size: 13px;
     padding: 12px 16px;
+    transform: translateY(-12px);
+  }
+
+  .toast-item--visible {
+    transform: translateY(0);
   }
 }
