@@ -95,12 +95,11 @@ export default class ConfigPanel {
     this.footer.appendChild(el('div', 'divider'));
     const srow = el('div', 'setting-row');
     const sbtn = el('button', 'setting-btn', {
-      title: 'API 设置',
+      title: '设置',
       onclick: () => { if (this.onSettingsOpen) this.onSettingsOpen(); }
     });
-    const gearIcon = iconSvg(15, 15, [
-      svgEl('circle', { cx: '8', cy: '8', r: '2.5', stroke: 'currentColor', 'stroke-width': '1.3' }),
-      svgEl('path', { d: 'M8 1.5V3M8 13v1.5M1.5 8H3M13 8h1.5M3.2 3.2l1.1 1.1M11.7 11.7l1.1 1.1M3.2 12.8l1.1-1.1M11.7 4.3l1.1-1.1', stroke: 'currentColor', 'stroke-width': '1.3' })
+    const gearIcon = iconSvg(20, 20, [
+      svgEl('path', { d: 'M10 0c-.3 0-.5.1-.7.4l-.3.9c-.2.5-.6.9-1.1 1.1l-.7.2c-.5.1-1 0-1.4-.4l-.6-.6c-.3-.3-.7-.3-1 0L3.8 3c-.3.3-.3.7 0 1l.6.6c.4.4.5.9.4 1.4l-.2.7c-.2.5-.6.9-1.1 1.1l-.9.3c-.2.1-.4.4-.4.7V10c0 .3.2.6.4.7l.9.3c.5.2.9.6 1.1 1.1l.2.7c.1.5 0 1-.4 1.4l-.6.6c-.3.3-.3.7 0 1l1.4 1.4c.3.3.7.3 1 0l.6-.6c.4-.4.9-.5 1.4-.4l.7.2c.5.2.9.6 1.1 1.1l.3.9c.1.2.4.4.7.4H10c.3 0 .6-.2.7-.4l.3-.9c.2-.5.6-.9 1.1-1.1l.7-.2c.5-.1 1 0 1.4.4l.6.6c.3.3.7.3 1 0l1.4-1.4c.3-.3.3-.7 0-1l-.6-.6c-.4-.4-.5-.9-.4-1.4l.2-.7c.2-.5.6-.9 1.1-1.1l.9-.3c.2-.1.4-.4.4-.7V8.8c0-.3-.2-.6-.4-.7l-.9-.3c-.5-.2-.9-.6-1.1-1.1l-.2-.7c-.1-.5 0-1 .4-1.4l.6-.6c.3-.3.3-.7 0-1L16.2 2c-.3-.3-.7-.3-1 0l-.6.6c-.4.4-.9.5-1.4.4l-.7-.2c-.5-.2-.9-.6-1.1-1.1l-.3-.9c-.1-.2-.4-.4-.7-.4H10zm0 5.5c1.9 0 3.5 1.6 3.5 3.5s-1.6 3.5-3.5 3.5S6.5 10.9 6.5 9 8.1 5.5 10 5.5z', fill: 'currentColor' })
     ]);
     sbtn.appendChild(gearIcon);
     srow.appendChild(sbtn);

@@ -25,6 +25,9 @@ const ICONS = {
     svgEl('circle', { cx: '6', cy: '9', r: '1.2', fill: 'currentColor' }),
     svgEl('circle', { cx: '6', cy: '13', r: '1.2', fill: 'currentColor' }),
   ],
+  settings: [
+    svgEl('path', { d: 'M12 2c-.3 0-.6.2-.7.4l-.3.9c-.2.5-.6.9-1.1 1.1l-.7.2c-.5.1-1 0-1.4-.4l-.6-.6c-.3-.3-.7-.3-1 0l-1.4 1.4c-.3.3-.3.7 0 1l.6.6c.4.4.5.9.4 1.4l-.2.7c-.2.5-.6.9-1.1 1.1l-.9.3c-.2.1-.4.4-.4.7v2c0 .3.2.6.4.7l.9.3c.5.2.9.6 1.1 1.1l.2.7c.1.5 0 1-.4 1.4l-.6.6c-.3.3-.3.7 0 1l1.4 1.4c.3.3.7.3 1 0l.6-.6c.4-.4.9-.5 1.4-.4l.7.2c.5.2.9.6 1.1 1.1l.3.9c.1.2.4.4.7.4h2c.3 0 .6-.2.7-.4l.3-.9c.2-.5.6-.9 1.1-1.1l.7-.2c.5-.1 1 0 1.4.4l.6.6c.3.3.7.3 1 0l1.4-1.4c.3-.3.3-.7 0-1l-.6-.6c-.4-.4-.5-.9-.4-1.4l.2-.7c.2-.5.6-.9 1.1-1.1l.9-.3c.2-.1.4-.4.4-.7v-2c0-.3-.2-.6-.4-.7l-.9-.3c-.5-.2-.9-.6-1.1-1.1l-.2-.7c-.1-.5 0-1 .4-1.4l.6-.6c.3-.3.3-.7 0-1l-1.4-1.4c-.3-.3-.7-.3-1 0l-.6.6c-.4.4-.9.5-1.4.4l-.7-.2c-.5-.2-.9-.6-1.1-1.1l-.3-.9c-.1-.2-.4-.4-.7-.4h-2zm1 6c1.7 0 3 1.3 3 3s-1.3 3-3 3-3-1.3-3-3 1.3-3 3-3z', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.2', 'stroke-linejoin': 'round' }),
+  ],
 };
 
 export default class MobileNav {
@@ -35,6 +38,7 @@ export default class MobileNav {
     this.container = null;
     this._backdrop = null;
     this._resizeHandler = null;
+    this.onSettingsOpen = null;
 
     this._render();
     this._listenResize();
@@ -49,6 +53,7 @@ export default class MobileNav {
       { key: 'history', label: '历史' },
       { key: 'canvas', label: '画布' },
       { key: 'config', label: '配置' },
+      { key: 'settings', label: '设置' },
     ];
 
     tabs.forEach(tab => {
@@ -129,6 +134,9 @@ export default class MobileNav {
       case 'config':
         if (right) right.classList.add('mobile-panel--open');
         if (this._backdrop) this._backdrop.classList.add('mobile-panel-backdrop--visible');
+        break;
+      case 'settings':
+        if (this.onSettingsOpen) this.onSettingsOpen();
         break;
       case 'canvas':
       default:

@@ -83,6 +83,7 @@ export default class App {
     this.el.appendChild(this.settings.overlay);
 
     this._mobileNav = new MobileNav(this.el);
+    this._mobileNav.onSettingsOpen = () => this.settings.open();
 
     this._eventWirer.wire();
 

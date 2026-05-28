@@ -26,16 +26,17 @@
 }
 
 .setting-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--border-radius-md);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
   border: 0.5px solid var(--color-border-secondary);
   background: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-text-secondary);
+  color: var(--color-text-tertiary);
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
 }
 
 .setting-btn:hover {
@@ -47,6 +48,10 @@
 @media (max-width: 767px) {
   .right-footer {
     padding: 14px 16px 16px;
+  }
+
+  .setting-row {
+    display: none;
   }
 
   .setting-btn {
