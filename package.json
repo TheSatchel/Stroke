@@ -4,8 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "python serve.py --debug",
-    "serve": "python serve.py",
+    "start": "python launch.py --dev",
+    "serve": "python launch.py --asgi",
+    "serve:wsgi": "python launch.py --wsgi",
+    "serve:cdn": "python launch.py --cdn --asgi",
+    "serve:cdn-wsgi": "python launch.py --cdn --wsgi",
+    "setup": "python launch.py --install",
+    "download-model": "python launch.py --download-model",
     "test": "vitest run",
     "test:watch": "vitest"
   },
