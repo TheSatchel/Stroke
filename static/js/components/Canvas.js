@@ -135,13 +135,13 @@ export default class Canvas {
   //  事件路由
   // ================================================================
   _onDown(e) {
+    if (e.target.closest('.canvas-confirm-btn, .canvas-img-delete, .canvas-placeholder')) return;
+
     if (e.touches) {
       e.preventDefault();
       if (this._touchId !== null) return;
       this._touchId = e.touches[0] ? e.touches[0].identifier : null;
     }
-
-    if (e.target.closest('.canvas-confirm-btn')) return;
 
     if (!this._isShowingUserImage) {
       if (!this._generatedImageDataUrl) return;
