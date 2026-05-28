@@ -214,8 +214,10 @@
 /* ---- Mobile ---- */
 @media (max-width: 767px) {
   .canvas-img {
-    width: 100%;
-    height: 100%;
+    position: absolute;
+    inset: 0;
+    width: auto;
+    height: auto;
     max-width: none;
     max-height: none;
     aspect-ratio: auto;

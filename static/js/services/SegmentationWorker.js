@@ -19,10 +19,16 @@ let _lastImageDataUrl = null;
 let _lastResults = null;
 
 async function loadModel() {
-  const { pipeline } = await import(
-    'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0/dist/transformers.min.js'
-  );
-  self.postMessage({ type: 'progress', message: '⬇️ 正在下载 / 验证 AI 分割模型…' });
+  const TR_JS_URL = new URL('../vendor/transformers-3.0.0.min.js', import.meta.url).href;
+  const { pipeline, env } = await import(TR_JS_URL);
+
+  // 从 worker URL 推算模型目录，自动适配普通 / CDN 模式
+  // env.remotePathTemplate 只支持 {model} 和 {revision}，文件名由库内部拼接
+  const MODELS_BASE = new URL('../../models/', import.meta.url).href;
+  env.remoteHost = MODELS_BASE;
+  env.remotePathTemplate = '{model}/';
+
+  self.postMessage({ type: 'progress', message: '⬇️ 正在加载 / 验证 AI 分割模型…' });
   _pipeline = await pipeline('image-segmentation', MODEL_NAME);
 }
 

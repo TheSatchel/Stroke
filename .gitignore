@@ -28,3 +28,9 @@ node_modules/
 dist/
 build/
 *.log
+
+# AI Model files (downloaded separately)
+static/models/
+
+# Source maps
+*.map

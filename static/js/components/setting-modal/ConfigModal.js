@@ -287,11 +287,11 @@ export default class ConfigModal {
     if (this.nameInput) this.nameInput.value = cfg.name || '';
     if (this.provSelect) this.provSelect.value = cfg.adapter || '';
     if (this.apiKeyInput) this.apiKeyInput.value = cfg.apiKey || '';
-    if (this.endpointInput) this.endpointInput.value = cfg.endpoint || '';
     this._currentModel = cfg.model || '';
     this._currentFallbackModel = cfg.fallbackModel || null;
     this._updateModelHint();
     this._provChange();
+    if (this.endpointInput) this.endpointInput.value = cfg.endpoint || '';
     const self = this;
     setTimeout(() => {
       if (cfg.params) {

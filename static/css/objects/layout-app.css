@@ -48,14 +48,18 @@
 /* ---- Mobile ---- */
 @media (max-width: 767px) {
   .app {
-    grid-template-columns: 1fr;
-    grid-template-rows: 1fr;
+    display: flex;
+    flex-direction: column;
     padding-bottom: var(--bp-mobile-nav-height, 56px);
+  }
+
+  .col-mid {
+    flex: 1;
   }
 
   .col-left,
   .col-right {
-    position: absolute;
+    position: fixed;
     inset: 0 0 var(--bp-mobile-nav-height, 56px) 0;
     z-index: 50;
     background: var(--color-background-primary);
