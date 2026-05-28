@@ -13,12 +13,13 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-// PWA standalone 模式下限制窗口最小尺寸
+// PWA standalone 模式下限制窗口最小尺寸（仅桌面端）
 (function () {
     const MIN_W = 980;
     const MIN_H = 650;
 
     function enforceMinSize() {
+        if (window.matchMedia('(max-width: 767px)').matches) return;
         if (!window.matchMedia('(display-mode: standalone)').matches) return;
         const w = Math.max(window.outerWidth, MIN_W);
         const h = Math.max(window.outerHeight, MIN_H);

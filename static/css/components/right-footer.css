@@ -26,9 +26,9 @@
 }
 
 .setting-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--border-radius-md);
   border: 0.5px solid var(--color-border-secondary);
   background: none;
   cursor: pointer;
