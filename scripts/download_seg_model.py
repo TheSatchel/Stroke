@@ -14,7 +14,7 @@ import os
 import sys
 import hashlib
 from pathlib import Path
-from urllib.request import urlretrieve, urlopen, Request
+from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
 
 # ---------- 配置 ----------
@@ -36,24 +36,8 @@ REQUIRED_FILES = [
     "config.json",
     "preprocessor_config.json",
     "onnx/model.onnx",
+    "onnx/model_quantized.onnx",
 ]
-
-UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) transformers.js/3.0.0"
-
-
-def build_urls(filename: str):
-    """为每个镜像源生成下载 URL"""
-    urls = []
-    for base, is_cdn in MIRRORS:
-        if is_cdn:
-            # jsDelivr GitHub 映射
-            url = base.replace("{repo}", HF_REPO.replace("/", "-"))
-            url = f"{url}/{filename}"
-        else:
-            url = f"{base}/{HF_REPO}/resolve/{HF_BRANCH}/{filename}"
-        urls.append((url, base))
-    return urls
-
 
 def download_file(filename: str, dest: Path) -> bool:
     if dest.exists() and dest.stat().st_size > 0:
@@ -61,12 +45,15 @@ def download_file(filename: str, dest: Path) -> bool:
         print(f"  [跳过] {filename} ({size_mb:.1f} MB, 已存在)")
         return True
 
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
     urls = build_urls(filename)
     for url, source in urls:
         try:
             print(f"  [{source}] 尝试 {filename} ...", end=" ", flush=True)
             req = Request(url, headers={"User-Agent": UA})
-            urlretrieve(req.url if hasattr(req, 'url') else url, dest)
+            with urlopen(req, timeout=30) as resp, open(dest, 'wb') as f:
+                f.write(resp.read())
             size_mb = dest.stat().st_size / (1024 * 1024)
             print(f"完成 ({size_mb:.1f} MB)")
             return True
