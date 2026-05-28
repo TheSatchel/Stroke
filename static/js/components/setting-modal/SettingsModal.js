@@ -229,6 +229,13 @@ export default class SettingsModal {
       value: this.currentAccent,
       style: 'width:100%;height:36px;padding:2px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:var(--color-background-primary);cursor:pointer'
     });
+
+    // 手机端右划关闭 overlay
+    let _touchX = 0;
+    this.overlay.addEventListener('touchstart', function(e) { _touchX = e.touches[0].clientX; }, { passive: true });
+    this.overlay.addEventListener('touchend', function(e) {
+      if (e.changedTouches[0].clientX - _touchX > 80) self.close();
+    });
     this.colorInput.addEventListener('input', function(e) {
       var hex = e.target.value;
       self.currentAccent = hex;

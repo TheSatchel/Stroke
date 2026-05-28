@@ -54,6 +54,10 @@
     display: none;
   }
 
+  .divider {
+    display: none;
+  }
+
   .setting-btn {
     width: 40px;
     height: 40px;

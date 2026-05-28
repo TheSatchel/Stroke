@@ -227,7 +227,8 @@
   }
 
   .settings-modal {
-    width: 100%;
+    width: 100% !important;
+    max-width: none !important;
     max-height: none;
     height: 100dvh;
     border-radius: 0;
@@ -243,7 +244,7 @@
   }
 
   .sm-header {
-    padding: env(safe-area-inset-top, 16px) 20px 14px;
+    padding: calc(env(safe-area-inset-top, 0px) + 24px) 20px 14px;
   }
 
   .sm-footer {

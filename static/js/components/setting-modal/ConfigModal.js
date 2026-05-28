@@ -47,6 +47,13 @@ export default class ConfigModal {
     const body = el('div', 'sm-body');
     const self = this;
 
+    // 手机端右划关闭
+    let _touchX = 0;
+    this.overlay.addEventListener('touchstart', function(e) { _touchX = e.touches[0].clientX; }, { passive: true });
+    this.overlay.addEventListener('touchend', function(e) {
+      if (e.changedTouches[0].clientX - _touchX > 80) self.close();
+    });
+
     // --- 配置选择 ---
     const fCfg = el('div', 'sm-field');
     fCfg.appendChild(el('div', 'sm-label', { text: '配置' }));

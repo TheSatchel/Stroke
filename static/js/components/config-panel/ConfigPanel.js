@@ -98,8 +98,11 @@ export default class ConfigPanel {
       title: '设置',
       onclick: () => { if (this.onSettingsOpen) this.onSettingsOpen(); }
     });
-    const gearIcon = iconSvg(64, 64, [
-      svgEl('path', { d: 'M32 4a4 4 0 0 0-3.5 2l-1.5 4c-.3.7-.9 1.2-1.6 1.5l-3.4 1c-.8.3-1.7 0-2.3-.6L17 10a3.8 3.8 0 0 0-5.5 0L6.5 15a3.8 3.8 0 0 0 0 5.5l3.2 3.2c.6.6.8 1.5.6 2.3l-1 3.4c-.3.7-.8 1.3-1.5 1.6l-4 1.5A4 4 0 0 0 2 35.5v5a4 4 0 0 0 2 3.5l4 1.5c.7.3 1.2.9 1.5 1.6l1 3.4c.3.8 0 1.7-.6 2.3l-3.2 3.2a3.8 3.8 0 0 0 0 5.5L11.5 67a3.8 3.8 0 0 0 5.5 0l3.2-3.2c.6-.6 1.5-.8 2.3-.6l3.4 1c.7.3 1.3.8 1.6 1.5l1.5 4a4 4 0 0 0 3.5 2h5.5a4 4 0 0 0 3.5-2l1.5-4c.3-.7.9-1.2 1.6-1.5l3.4-1c.8-.3 1.7 0 2.3.6L53 67a3.8 3.8 0 0 0 5.5 0L63.5 62a3.8 3.8 0 0 0 0-5.5l-3.2-3.2c-.6-.6-.8-1.5-.6-2.3l1-3.4c.3-.7.8-1.3 1.5-1.6l4-1.5A4 4 0 0 0 68 41.5v-5a4 4 0 0 0-2-3.5l-4-1.5c-.7-.3-1.2-.9-1.5-1.6l-1-3.4c-.3-.8 0-1.7.6-2.3l3.2-3.2a3.8 3.8 0 0 0 0-5.5L57.5 9a3.8 3.8 0 0 0-5.5 0l-3.2 3.2c-.6.6-1.5.8-2.3.6l-3.4-1c-.7-.3-1.3-.8-1.6-1.5L40 6.5A4 4 0 0 0 36.5 4.5H31L32 4zm0 17a11 11 0 1 1 0 22 11 11 0 0 1 0-22z', fill: 'none', stroke: 'currentColor', 'stroke-width': '4.5', 'stroke-linejoin': 'round' })
+    const gearIcon = iconSvg(16, 16, [
+      svgEl('circle', { cx: '5', cy: '4', r: '2', fill: 'currentColor' }),
+      svgEl('path', { d: 'M5 6v8M5 2V0', stroke: 'currentColor', 'stroke-width': '1.8', 'stroke-linecap': 'round' }),
+      svgEl('circle', { cx: '11', cy: '12', r: '2', fill: 'currentColor' }),
+      svgEl('path', { d: 'M11 14v2M11 10V0', stroke: 'currentColor', 'stroke-width': '1.8', 'stroke-linecap': 'round' }),
     ]);
     sbtn.appendChild(gearIcon);
     srow.appendChild(sbtn);
