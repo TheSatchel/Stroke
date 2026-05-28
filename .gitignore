@@ -35,5 +35,8 @@ static/models/
 # Vendor libraries (downloaded on setup)
 static/js/vendor/
 
+# Git temp
+.git-rewrite/
+
 # Source maps
 *.map
