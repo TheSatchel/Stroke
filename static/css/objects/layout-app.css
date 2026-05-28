@@ -26,6 +26,7 @@
   flex-direction: column;
   position: relative;
   overflow: hidden;
+  min-height: 0;
 }
 
 .col-right {
@@ -48,6 +49,7 @@
 @media (max-width: 767px) {
   .app {
     grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
     padding-bottom: var(--bp-mobile-nav-height, 56px);
   }
 
