@@ -146,8 +146,8 @@
 @media (max-width: 767px) {
   .history-list {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 6px;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
   }
 
   .hist-item {
@@ -156,7 +156,7 @@
   }
 
   .hist-thumb {
-    aspect-ratio: 3 / 4;
+    aspect-ratio: 1;
   }
 
   .hist-meta {
