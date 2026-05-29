@@ -16,6 +16,46 @@ export default class ImageManager {
   }
 
   /**
+   * 压缩图片到目标大小以下
+   * @param {string} dataUrl
+   * @param {number} maxMB - 最大兆字节
+   * @returns {Promise<string>}
+   */
+  async _compressImage(dataUrl, maxMB = 10) {
+    const img = new Image();
+    return new Promise((resolve) => {
+      img.onload = () => {
+        const maxBytes = maxMB * 1024 * 1024;
+        if (dataUrl.length <= maxBytes) return resolve(dataUrl);
+
+        // 缩小到最大 2048px 并降低质量
+        let w = img.naturalWidth;
+        let h = img.naturalHeight;
+        const maxDim = 2048;
+        if (Math.max(w, h) > maxDim) {
+          const scale = maxDim / Math.max(w, h);
+          w = Math.round(w * scale);
+          h = Math.round(h * scale);
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+
+        // 逐步降低质量直到满足大小限制
+        for (const quality of [0.85, 0.7, 0.5, 0.3]) {
+          const compressed = canvas.toDataURL('image/jpeg', quality);
+          if (compressed.length <= maxBytes || quality <= 0.3) return resolve(compressed);
+        }
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  }
+
+  /**
    * 计算图片在容器中的实际渲染区域
    */
   computeImageRenderArea(natW, natH, containerW, containerH) {
@@ -59,15 +99,15 @@ export default class ImageManager {
     return cph;
   }
 
-  _handleImageFile(file) {
+  async _handleImageFile(file) {
     if (!file || !file.type.startsWith('image/')) return;
-    if (file.size > 10 * 1024 * 1024) {
-      showWarningToast('图片大小不能超过 10MB');
-      return;
-    }
     const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result;
+    reader.onload = async () => {
+      let dataUrl = reader.result;
+      // 过大或非 JPEG/PNG → 压缩转换
+      if (file.size > 10 * 1024 * 1024 || !/jpeg|png|webp/i.test(file.type)) {
+        dataUrl = await this._compressImage(dataUrl, file.size > 10 * 1024 * 1024 ? 10 : 999);
+      }
       this._canvas._selManager.clearAllSelections();
       this.setCanvasImage(dataUrl);
       const canvas = this._canvas;
