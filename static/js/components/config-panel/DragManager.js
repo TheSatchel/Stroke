@@ -13,6 +13,8 @@ export default class DragManager {
     this.panel = panel;
     this.dragSrc = null;
     this._touchDrag = null;
+    this._onTouchMove = (e) => this.tMove(e);
+    this._onTouchEnd = (e) => this.tEnd(e);
   }
 
   // ================================================================
@@ -98,6 +100,7 @@ export default class DragManager {
   //  Touch 拖拽事件处理 (降级，与 mouse DnD 共享 _performReorder)
   // ================================================================
   tStart(e) {
+    e.preventDefault();
     const elm = e.currentTarget.closest('.drag-section');
     if (!elm) return;
     if (elm.classList.contains('drag-section--flagged')) return;
@@ -116,6 +119,8 @@ export default class DragManager {
 
     elm.classList.add('drag-section--dragging');
     this._touchDrag = { elm, ghost, startY: touch.clientY, moved: false };
+    document.addEventListener('touchmove', this._onTouchMove, { passive: false });
+    document.addEventListener('touchend', this._onTouchEnd);
   }
 
   tMove(e) {
@@ -124,7 +129,7 @@ export default class DragManager {
     const dy = Math.abs(touch.clientY - this._touchDrag.startY);
     const dx = Math.abs(touch.clientX - this._touchDrag.startX);
     if (!this._touchDrag.started && dx < 8 && dy < 8) return;
-    if (!this._touchDrag.started && dy > dx) { this._touchDrag = null; return; }
+    if (!this._touchDrag.started && dy > dx) { this._cancelTouchDrag(); return; }
     e.preventDefault();
     this._touchDrag.started = true;
     this._touchDrag.ghost.style.left = (touch.clientX - 60) + 'px';
@@ -156,6 +161,18 @@ export default class DragManager {
 
     this.panel.secList.querySelectorAll('.drag-section').forEach(s => s.classList.remove('drag-section--dragover'));
     if (this._touchDrag.ghost) this._touchDrag.ghost.remove();
+    document.removeEventListener('touchmove', this._onTouchMove);
+    document.removeEventListener('touchend', this._onTouchEnd);
+    this._touchDrag = null;
+  }
+
+  _cancelTouchDrag() {
+    if (!this._touchDrag) return;
+    this._touchDrag.elm.classList.remove('drag-section--dragging');
+    if (this._touchDrag.ghost) this._touchDrag.ghost.remove();
+    this.panel.secList.querySelectorAll('.drag-section').forEach(s => s.classList.remove('drag-section--dragover'));
+    document.removeEventListener('touchmove', this._onTouchMove);
+    document.removeEventListener('touchend', this._onTouchEnd);
     this._touchDrag = null;
   }
 

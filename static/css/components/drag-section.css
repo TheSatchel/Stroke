@@ -63,6 +63,7 @@
   gap: 2px;
   flex-shrink: 0;
   opacity: 0.35;
+  cursor: grab;
 }
 
 .drag-handle span {

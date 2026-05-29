@@ -94,15 +94,28 @@ export default class SliderWidget {
       this.thumb.classList.remove('active');
     };
 
+    const onTouchStart = (e) => {
+      e.preventDefault();
+      onDown(e.touches[0]);
+    };
+    const onTouchMove = (e) => {
+      if (!this._dragging) return;
+      e.preventDefault();
+      onMove(e.touches[0]);
+    };
+    const onTouchEnd = (e) => {
+      onUp();
+    };
+
     this.thumb.addEventListener('mousedown', onDown);
-    this.thumb.addEventListener('touchstart', (e) => { e.preventDefault(); onDown(e.touches[0]); });
+    this.thumb.addEventListener('touchstart', onTouchStart);
     this.track.addEventListener('mousedown', onDown);
-    this.track.addEventListener('touchstart', (e) => { e.preventDefault(); onDown(e.touches[0]); });
+    this.track.addEventListener('touchstart', onTouchStart);
 
     document.addEventListener('mousemove', onMove);
-    document.addEventListener('touchmove', (e) => { e.preventDefault(); onMove(e.touches[0]); }, { passive: false });
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
     document.addEventListener('mouseup', onUp);
-    document.addEventListener('touchend', onUp);
+    document.addEventListener('touchend', onTouchEnd);
   }
 
   _move(e) {

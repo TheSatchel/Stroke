@@ -33,6 +33,8 @@ export function makeTabSection(tabDef, dragManager, tabContextMenu, widgets, pan
   if (isPinnedSection) {
     handle.style.opacity = '0.1';
     handle.style.cursor = 'default';
+  } else {
+    handle.addEventListener('touchstart', e => dragManager.tStart(e), { passive: false });
   }
   handle.innerHTML = '<span></span><span></span><span></span>';
   hdr.appendChild(handle);
