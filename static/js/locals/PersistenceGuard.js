@@ -170,8 +170,9 @@ export default class PersistenceGuard {
    */
   _onConfigChange() {
     this.markDirty();
-    // 历史面板也需要持久化
-    this.app.history.render();
+    if (this.app.history && typeof this.app.history.render === 'function') {
+      this.app.history.render();
+    }
   }
 
   /**

@@ -267,28 +267,16 @@ export default class DragManager {
         ghost.style.display = 'none';
         document.body.style.userSelect = '';
         document.body.style.cursor = '';
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onEnd);
+        document.removeEventListener('touchmove', onTouchMove);
+        document.removeEventListener('touchend', onTouchEnd);
         const ren = getRenderedWidths();
         persistSizes(ren.left, ren.right);
         setSizesVw(vwFromPx(ren.left), vwFromPx(ren.right));
       };
 
-      handleEl.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        onStart(e.clientX);
-      });
-
-      handleEl.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        if (e.touches[0]) {
-          touchId = e.touches[0].identifier;
-          onStart(e.touches[0].clientX);
-        }
-      }, { passive: false });
-
-      document.addEventListener('mousemove', (e) => onMove(e.clientX));
-      document.addEventListener('mouseup', onEnd);
-
-      document.addEventListener('touchmove', (e) => {
+      const onTouchMove = (e) => {
         if (!dragging || touchId === null) return;
         for (let i = 0; i < e.touches.length; i++) {
           if (e.touches[i].identifier === touchId) {
@@ -296,9 +284,9 @@ export default class DragManager {
             return;
           }
         }
-      }, { passive: false });
+      };
 
-      document.addEventListener('touchend', (e) => {
+      const onTouchEnd = (e) => {
         if (touchId === null) return;
         for (let i = 0; i < e.changedTouches.length; i++) {
           if (e.changedTouches[i].identifier === touchId) {
@@ -307,7 +295,24 @@ export default class DragManager {
             return;
           }
         }
+      };
+
+      handleEl.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        onStart(e.clientX);
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onEnd);
       });
+
+      handleEl.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (e.touches[0]) {
+          touchId = e.touches[0].identifier;
+          onStart(e.touches[0].clientX);
+          document.addEventListener('touchmove', onTouchMove, { passive: false });
+          document.addEventListener('touchend', onTouchEnd);
+        }
+      }, { passive: false });
     };
 
     makeDragger(handleLeft, true);

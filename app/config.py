@@ -15,7 +15,9 @@ class Settings:
 
     def _load_yaml(self, path: Path):
         if not path.exists():
-            raise FileNotFoundError(f"配置文件不存在: {path}")
+            import warnings
+            warnings.warn(f"配置文件不存在: {path}，使用默认配置")
+            return
         with open(path, encoding="utf-8") as f:
             self._data = yaml.safe_load(f) or {}
         # 环境变量覆盖 debug

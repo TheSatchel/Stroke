@@ -4,7 +4,7 @@
  * 管理占位区、文件上传、setCanvasImage、clear、loadVersion、showHistory。
  */
 import { el } from '../../utils/DOM.js';
-import { isValidSvg } from '../../adapters/ResponseParser.js';
+import { isValidSvg, svgToBase64DataUrl } from '../../adapters/ResponseParser.js';
 import { showWarningToast } from '../../utils/Toast.js';
 
 export default class ImageManager {
@@ -215,8 +215,11 @@ export default class ImageManager {
       </div>`;
     } else if (imageResult && imageResult.svg && isValidSvg(imageResult.svg)) {
       const fullSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 56 56" fill="none" preserveAspectRatio="xMidYMid meet">${imageResult.svg}</svg>`;
-      canvas._generatedImageDataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(fullSvg)));
-      canvas.canvasImg.innerHTML = `<svg width="100%" height="100%" viewBox="0 0 56 56" fill="none" preserveAspectRatio="xMidYMid meet">${imageResult.svg}</svg>`;
+      const dataUrl = svgToBase64DataUrl(fullSvg) || '';
+      canvas._generatedImageDataUrl = dataUrl;
+      canvas.canvasImg.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">
+        <img src="${dataUrl}" draggable="false" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:4px;-webkit-user-drag:none;user-select:none;pointer-events:none" />
+      </div>`;
     } else {
       canvas._generatedImageDataUrl = null;
       showWarningToast('生成结果无法显示，请检查 API 配置或模型');

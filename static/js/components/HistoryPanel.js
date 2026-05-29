@@ -4,6 +4,7 @@
 
 import { el } from '../utils/DOM.js';
 import { pinyin } from '../lib/pinyin-pro.mjs';
+import { svgToBase64DataUrl } from '../adapters/ResponseParser.js';
 
 function matchLabel(label, keywords) {
   if (keywords.length === 0) return true;
@@ -71,7 +72,10 @@ export default class HistoryPanel {
       } else if (item.type === 'raster' && item.dataUrl) {
         thumb.innerHTML = `<img src="${item.dataUrl}" />`;
       } else if (item.svg) {
-        thumb.innerHTML = `<svg viewBox="0 0 56 56" fill="none">${item.svg}</svg>`;
+        const dataUrl = svgToBase64DataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 56" fill="none">${item.svg}</svg>`);
+        if (dataUrl) {
+          thumb.innerHTML = `<img src="${dataUrl}" draggable="false" style="width:100%;height:100%;object-fit:contain" />`;
+        }
       }
       if (item.current) {
         const badge = el('span', '', {

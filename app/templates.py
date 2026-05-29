@@ -1,5 +1,4 @@
 from pathlib import Path
-from jinja2 import Environment, FileSystemLoader
 from fastapi.templating import Jinja2Templates
 from fastapi import FastAPI
 

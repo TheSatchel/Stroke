@@ -35,9 +35,12 @@ function accentVarsFromHex(hex) {
  */
 function generateBaseScheme(accentHex, mode) {
   const { h, s } = hexToHsl(accentHex);
-  const sh = (h + 75) % 360;   // success hue offset (+75° toward green)
+  const sSat = Math.round(45 + s * 0.30);  // success green saturation, scales with accent
 
   if (mode === 'dark') {
+    const dSat = Math.round(52 + s * 0.25);
+    const dL = Math.round(48 + s * 0.12);
+    const eSat = Math.round(68 + s * 0.15);
     return {
       '--color-background-primary':   `hsl(${h}, ${Math.round(s * 0.12)}%, 12%)`,
       '--color-background-secondary': `hsl(${h}, ${Math.round(s * 0.10)}%, 9%)`,
@@ -52,22 +55,24 @@ function generateBaseScheme(accentHex, mode) {
       '--color-context-menu':         `hsla(${h}, ${Math.round(s * 0.10)}%, 14%, 0.88)`,
       '--color-context-menu-dark':    `hsla(${h}, ${Math.round(s * 0.10)}%, 14%, 0.88)`,
       '--color-white':                '#ffffff',
-      '--color-success':              `hsl(${sh}, 55%, 45%)`,
-      '--color-success-bg':           `hsla(${sh}, 45%, 40%, 0.15)`,
-      '--color-danger':               '#d45050',
-      '--color-danger-hover':         '#b33a3a',
-      '--color-danger-bg':            'rgba(220,82,82,0.10)',
-      // toast 通知颜色
-      '--color-error-bg':             'hsl(6,68%,17%)',
-      '--color-error-text':           'hsl(6,41%,92%)',
-      '--color-error-border':         'hsl(6,37%,38%)',
-      '--color-error-shadow':         'hsla(6,68%,6%,0.30)',
-      '--color-warning-bg':           'hsl(32,90%,16%)',
-      '--color-warning-text':         'hsl(32,63%,93%)',
-      '--color-warning-border':       'hsl(32,50%,42%)',
-      '--color-warning-shadow':       'hsla(32,90%,6%,0.32)',
+      '--color-success':              `hsl(120, ${sSat}%, ${Math.round(38 + s * 0.15)}%)`,
+      '--color-success-bg':           `hsla(120, ${Math.round(sSat * 0.8)}%, 35%, 0.18)`,
+      '--color-danger':               `hsl(5, ${dSat}%, ${dL}%)`,
+      '--color-danger-hover':         `hsl(5, ${dSat}%, ${Math.max(20, dL - 13)}%)`,
+      '--color-danger-bg':            `hsla(5, ${dSat}%, ${dL}%, 0.12)`,
+      '--color-error-bg':             `hsl(6, ${eSat}%, 17%)`,
+      '--color-error-text':           `hsl(6, ${Math.round(eSat * 0.6)}%, 92%)`,
+      '--color-error-border':         `hsl(6, ${Math.round(eSat * 0.55)}%, 38%)`,
+      '--color-error-shadow':         `hsla(6, ${eSat}%, 6%, 0.30)`,
+      '--color-warning-bg':           'hsl(32, 90%, 16%)',
+      '--color-warning-text':         'hsl(32, 63%, 93%)',
+      '--color-warning-border':       'hsl(32, 50%, 42%)',
+      '--color-warning-shadow':       'hsla(32, 90%, 6%, 0.32)',
     };
   } else {
+    const dSat = Math.round(52 + s * 0.25);
+    const dL = Math.round(40 + s * 0.06);
+    const eSat = Math.round(68 + s * 0.15);
     return {
       '--color-background-primary':   `hsl(${h}, ${Math.round(s * 0.15)}%, 94%)`,
       '--color-background-secondary': `hsl(${h}, ${Math.round(s * 0.12)}%, 90%)`,
@@ -82,20 +87,19 @@ function generateBaseScheme(accentHex, mode) {
       '--color-context-menu':         `hsla(${h}, ${Math.round(s * 0.15)}%, 94%, 0.86)`,
       '--color-context-menu-dark':    `hsla(${h}, ${Math.round(s * 0.15)}%, 94%, 0.86)`,
       '--color-white':                '#ffffff',
-      '--color-success':              `hsl(${sh}, 45%, 33%)`,
-      '--color-success-bg':           `hsla(${sh}, 50%, 40%, 0.12)`,
-      '--color-danger':               '#d45050',
-      '--color-danger-hover':         '#b33a3a',
-      '--color-danger-bg':            'rgba(220,82,82,0.10)',
-      // toast 通知颜色
-      '--color-error-bg':             'hsl(6,68%,95%)',
-      '--color-error-text':           'hsl(6,41%,16%)',
-      '--color-error-border':         'hsl(6,37%,64%)',
-      '--color-error-shadow':         'hsla(6,68%,40%,0.30)',
-      '--color-warning-bg':           'hsl(32,90%,95%)',
-      '--color-warning-text':         'hsl(32,63%,18%)',
-      '--color-warning-border':       'hsl(32,50%,68%)',
-      '--color-warning-shadow':       'hsla(32,90%,38%,0.32)',
+      '--color-success':              `hsl(120, ${sSat}%, ${Math.round(28 + s * 0.08)}%)`,
+      '--color-success-bg':           `hsla(120, ${Math.round(sSat * 0.9)}%, 35%, 0.10)`,
+      '--color-danger':               `hsl(5, ${dSat}%, ${dL}%)`,
+      '--color-danger-hover':         `hsl(5, ${dSat}%, ${Math.max(20, dL - 13)}%)`,
+      '--color-danger-bg':            `hsla(5, ${dSat}%, ${dL}%, 0.12)`,
+      '--color-error-bg':             `hsl(6, ${eSat}%, 95%)`,
+      '--color-error-text':           `hsl(6, ${Math.round(eSat * 0.6)}%, 16%)`,
+      '--color-error-border':         `hsl(6, ${Math.round(eSat * 0.55)}%, 64%)`,
+      '--color-error-shadow':         `hsla(6, ${eSat}%, 40%, 0.30)`,
+      '--color-warning-bg':           'hsl(32, 90%, 95%)',
+      '--color-warning-text':         'hsl(32, 63%, 18%)',
+      '--color-warning-border':       'hsl(32, 50%, 68%)',
+      '--color-warning-shadow':       'hsla(32, 90%, 38%, 0.32)',
     };
   }
 }

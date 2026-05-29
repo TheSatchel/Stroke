@@ -160,7 +160,8 @@ export default class SegmentationService {
 
     try {
       return await this._loadPromise;
-    } catch (_e) {
+    } catch (e) {
+      console.warn('[SegmentationService] 模型加载失败:', e.message || e);
       return false;
     }
   }

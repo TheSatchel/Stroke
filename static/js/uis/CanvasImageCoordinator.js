@@ -97,11 +97,11 @@ export default class CanvasImageCoordinator {
         };
         config.addCustomTab(def);
         entry = config.widgets['canvas_ref_image'];
-        if (entry) {
+        if (entry && entry.widget) {
           entry.widget.setValue(dataUrl);
           this.rewireImageSync();
         }
-      } else {
+      } else if (entry && entry.widget) {
         entry.widget.setValue(dataUrl);
       }
       app._eventWirer.notifyConfigChangeSafe();
