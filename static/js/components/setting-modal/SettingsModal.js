@@ -6,6 +6,7 @@ import { el } from '../../utils/DOM.js';
 import { clearAll } from '../../locals/storage.js';
 import { showToast, toggleConsoleForward } from '../../utils/Toast.js';
 import { hexToHsl } from '../../utils/ColorUtils.js';
+import SwipeConfirm from '../../utils/SwipeConfirm.js';
 
 // ================================================================
 //  主题色系自动生成
@@ -152,6 +153,7 @@ export default class SettingsModal {
     this.onConfigOpen = null;
     this.onDeleteAll = null;
     this.onResetAll = null;
+    this._swipeConfirms = [];
     // 从 localStorage 恢复偏好
     var prefs = loadThemePrefs();
     this.currentAccent = prefs.accent;
@@ -235,27 +237,26 @@ export default class SettingsModal {
     body.appendChild(divider);
     const dangerLabel = el('div', 'sm-danger-label', { text: '历史数据' });
     body.appendChild(dangerLabel);
-    const dangerBtn = el('button', 'sm-danger-btn', {
-      text: '删除全部历史',
-      onclick: () => { if (this.onDeleteAll) this.onDeleteAll(); }
+    const deleteSwipe = new SwipeConfirm(body, {
+      label: '删除全部历史',
+      hint: '此操作不可撤销',
+      danger: true,
+      onConfirm: () => { if (this.onDeleteAll) this.onDeleteAll(); }
     });
-    body.appendChild(dangerBtn);
-    const dangerHint = el('div', 'sm-danger-hint', { text: '此操作不可撤销' });
-    body.appendChild(dangerHint);
+    this._swipeConfirms.push(deleteSwipe);
 
     // 初始化按钮：清除所有持久化数据
     const resetDivider = el('div', 'sm-danger-divider');
     body.appendChild(resetDivider);
     const resetLabel = el('div', 'sm-danger-label', { text: '初始化' });
     body.appendChild(resetLabel);
-    const resetBtn = el('button', 'sm-danger-btn', {
-      text: '重置所有数据',
-      style: 'background: var(--color-danger); color: #fff;',
-      onclick: () => { if (this.onResetAll) this.onResetAll(); }
+    const resetSwipe = new SwipeConfirm(body, {
+      label: '重置所有数据',
+      hint: '清除所有配置、历史与偏好，恢复为初始状态',
+      danger: true,
+      onConfirm: () => { if (this.onResetAll) this.onResetAll(); }
     });
-    body.appendChild(resetBtn);
-    const resetHint = el('div', 'sm-danger-hint', { text: '清除所有配置、历史与偏好，恢复为初始状态' });
-    body.appendChild(resetHint);
+    this._swipeConfirms.push(resetSwipe);
 
     this.modal.appendChild(body);
 
