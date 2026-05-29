@@ -126,7 +126,6 @@ export default class DragManager {
     if (!this._touchDrag.started && Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
     e.preventDefault();
     this._touchDrag.started = true;
-    const touch = e.touches[0];
     this._touchDrag.ghost.style.left = (touch.clientX - 60) + 'px';
     this._touchDrag.ghost.style.top = (touch.clientY - 15) + 'px';
     this._touchDrag.moved = true;
