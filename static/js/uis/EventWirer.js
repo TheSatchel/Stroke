@@ -38,6 +38,7 @@ export default class EventWirer {
       const lineageFp = (lineage && lineage.fingerprint) || '';
       const isGenerating = !!(self._generatingFp && self._generatingFp === lineageFp);
       self.config.showPostGen(isGenerating);
+      if (self._mobileNav) self._mobileNav.switchTo('canvas');
     };
 
     // 版本切换（步进器）
@@ -60,6 +61,7 @@ export default class EventWirer {
       self.config.setDownloadLineage(item.lineageId, versionIndex);
       this._restoreRegionOverlays();
       saveAppState(self);
+      if (self._mobileNav) self._mobileNav.switchTo('canvas');
     };
 
     // 新建项目版本
