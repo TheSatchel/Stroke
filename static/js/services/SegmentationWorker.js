@@ -29,14 +29,11 @@ async function loadModel() {
     TR_JS = await import(CDN_URL);
   }
 
-  const pipeline = TR_JS.pipeline || (TR_JS.default && TR_JS.default.pipeline);
-  const env = TR_JS.env || (TR_JS.default && TR_JS.default.env);
+  const { pipeline, env } = TR_JS;
 
-  if (env) {
-    const MODELS_BASE = new URL('../../models/', import.meta.url).href;
-    env.remoteHost = MODELS_BASE;
-    env.remotePathTemplate = '{model}/';
-  }
+  const MODELS_BASE = new URL('../../models/', import.meta.url).href;
+  env.remoteHost = MODELS_BASE;
+  env.remotePathTemplate = '{model}/';
 
   self.postMessage({ type: 'progress', message: '⬇️ 正在加载 / 验证 AI 分割模型…' });
   _pipeline = await pipeline('image-segmentation', MODEL_NAME);

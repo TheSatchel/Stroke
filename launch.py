@@ -14,6 +14,7 @@ launch.py — 统一启动入口
     python launch.py --download-model   # 仅下载 AI 分割模型
 """
 import argparse
+import hashlib
 import os
 import subprocess
 import sys
@@ -25,6 +26,8 @@ ROOT = Path(__file__).resolve().parent
 MODEL_FILE = ROOT / "static" / "models" / "Xenova" / "segformer-b2-finetuned-ade-512-512" / "onnx" / "model_quantized.onnx"
 VENDOR_FILE = ROOT / "static" / "js" / "vendor" / "transformers-3.0.0.min.js"
 TR_JS_CDN = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0/dist/transformers.min.js"
+VENDOR_MD5 = "0EC705720DF86FCC95898D5D9571106A"
+MODEL_MD5 = "4DAD0B17A4EE37EDB4E12EE50D6971A3"
 
 
 def install_deps():
@@ -41,15 +44,28 @@ def install_deps():
     print("依赖安装完成.\n")
 
 
+def _file_intact(path: Path, expected_md5: str) -> bool:
+    if not path.exists():
+        return False
+    return hashlib.md5(path.read_bytes()).hexdigest().upper() == expected_md5
+
+
 def check_vendor():
-    if VENDOR_FILE.exists():
+    if _file_intact(VENDOR_FILE, VENDOR_MD5):
         return True
-    print("Transformers.js 库未找到，正在下载 (~0.7 MB)...")
+    if VENDOR_FILE.exists():
+        print("Transformers.js 文件不完整，重新下载...")
+    else:
+        print("Transformers.js 库未找到，正在下载 (~0.7 MB)...")
     VENDOR_FILE.parent.mkdir(parents=True, exist_ok=True)
     try:
         urlretrieve(TR_JS_CDN, VENDOR_FILE)
-        print("  下载完成.")
-        return True
+        if _file_intact(VENDOR_FILE, VENDOR_MD5):
+            print("  下载完成.")
+            return True
+        else:
+            print("  下载后校验失败，前端将回退到 CDN 加载.")
+            return False
     except Exception as e:
         print(f"  下载失败: {e}")
         print("  前端将自动回退到 CDN 加载，不影响使用.")
@@ -57,16 +73,19 @@ def check_vendor():
 
 
 def check_model():
-    if MODEL_FILE.exists():
+    if _file_intact(MODEL_FILE, MODEL_MD5):
         return True
-    print("\nAI 分割模型未找到，正在下载 (~190 MB)...")
+    if MODEL_FILE.exists():
+        print("\nAI 分割模型不完整，重新下载...")
+    else:
+        print("\nAI 分割模型未找到，正在下载 (~190 MB)...")
     script = ROOT / "scripts" / "download_seg_model.py"
     if not script.exists():
         print("  下载脚本不存在，跳过.")
         return False
     try:
         subprocess.check_call([sys.executable, str(script)])
-        return MODEL_FILE.exists()
+        return _file_intact(MODEL_FILE, MODEL_MD5)
     except subprocess.CalledProcessError:
         print("  模型下载失败，AI 分割功能将不可用.")
         return False
