@@ -148,7 +148,7 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
-    overflow-y: auto;
+    overflow-y: visible;
   }
 
   .hist-item {

@@ -151,6 +151,7 @@
   .drag-header {
     padding: 12px 12px 12px 10px;
     gap: 8px;
+    touch-action: none;
   }
 
   .drag-title {
