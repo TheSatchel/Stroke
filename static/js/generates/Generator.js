@@ -37,6 +37,17 @@ export async function performGeneration(app) {
   // 获取 manager 实例（由 App 构造函数注入）
   const lineageManager = app._lineageManager;
 
+  // ★ 先生成占位 lineage，让 HistoryPanel 显示「生成中」
+  const tabsToSave = tabsConfig.filter(tab => tab.unpersist !== true);
+  const { lineageId } = lineageManager.matchOrCreate(contentFp, {
+    tabValues,
+    tabsConfig: tabsToSave.map(t => ({ ...t })),
+    tabOrder: tabsConfig.map(t => t.id)
+  });
+  app.currentLineageId = lineageId;
+  app._rebuildHistoryItems();
+  app.history.render();
+
   // 创建管线
   const pipeline = new GenerationPipeline(app.generator, lineageManager, {
     onSegmentStart(task, segmentIndex, totalSegments) {
