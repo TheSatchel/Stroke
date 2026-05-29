@@ -140,6 +140,23 @@ export default class HistoryPanel {
     });
     searchWrap.appendChild(searchInput);
     this.container.appendChild(searchWrap);
+
+    this._sizeGrid();
+  }
+
+  _sizeGrid() {
+    if (window.innerWidth > 767) return;
+    requestAnimationFrame(() => {
+      const list = this.listEl;
+      if (!list || !list.parentNode) return;
+      const availableH = list.clientHeight;
+      const gap = 8;
+      const rows = 3;
+      const rowH = Math.floor((availableH - gap * (rows - 1)) / rows);
+      if (rowH > 0) {
+        list.style.gridAutoRows = rowH + 'px';
+      }
+    });
   }
 
   rebuildItems(lineages, currentLineageId) {

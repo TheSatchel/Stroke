@@ -148,19 +148,26 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
+    overflow-y: hidden;
   }
 
   .hist-item {
     margin-bottom: 0;
     min-width: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
   .hist-thumb {
-    aspect-ratio: 1;
+    aspect-ratio: auto;
+    flex: 1;
+    min-height: 0;
   }
 
   .hist-meta {
     padding: 4px 6px 5px;
+    flex-shrink: 0;
   }
 
   .hist-label {
