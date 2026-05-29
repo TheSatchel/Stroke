@@ -50,6 +50,14 @@ export class BaseAdapters {
   }
 
   /**
+   * 默认并发数（子类可覆盖）
+   * @returns {number}
+   */
+  static get defaultConcurrency() {
+    return 3;
+  }
+
+  /**
    * 生成器专属的配置参数定义列表
    * 子类重写以暴露可配置参数，如 quality, style, num_outputs 等
    * @returns {Array<{name: string, label: string, type: string, defaultValue: *, placeholder?: string, options?: string[]}>}

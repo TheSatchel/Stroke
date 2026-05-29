@@ -12,7 +12,7 @@ import { defaultConfigTabs } from '../components/ConfigTabs.js';
 import SettingsModal from '../components/setting-modal/SettingsModal.js';
 import ConfigModal from '../components/setting-modal/ConfigModal.js';
 import { migrateLegacyPresets } from '../locals/storage.js';
-import { GeneratorService } from '../Adapter.js';
+import { GeneratorService } from '../adapter.js';
 import { loadAppState } from '../locals/Persistence.js';
 import PersistenceGuard from '../locals/PersistenceGuard.js';
 import LineageManager from '../locals/LineageManager.js';
@@ -85,6 +85,8 @@ export default class App {
     this._mobileNav = new MobileNav(this.el);
     this._mobileNav.onSettingsOpen = () => this.settings.open();
 
+    this._initAndroidBackHandler();
+
     this._eventWirer.wire();
 
     this._initPromise = loadAppState(this).then(() => {
@@ -117,6 +119,50 @@ export default class App {
 
   _notifyConfigChangeSafe() {
     this._eventWirer.notifyConfigChangeSafe();
+  }
+
+  // ---- Android 侧滑返回处理 ----
+  _initAndroidBackHandler() {
+    history.pushState({ stroke: true, idx: 0 }, '', location.href);
+    let _backIdx = 0;
+
+    const _eatBack = () => {
+      _backIdx++;
+      history.pushState({ stroke: true, idx: _backIdx }, '', location.href);
+    };
+
+    window.addEventListener('popstate', (e) => {
+      const isConfigOpen = this.configModal && this.configModal.overlay && !this.configModal.overlay.classList.contains('hidden');
+      const isSettingsOpen = this.settings && this.settings.overlay && !this.settings.overlay.classList.contains('hidden');
+
+      if (isConfigOpen) {
+        this.configModal.close();
+        _eatBack();
+        return;
+      }
+
+      if (isSettingsOpen) {
+        this.settings.close();
+        _eatBack();
+        return;
+      }
+
+      const left = this.el.querySelector('.col-left');
+      const right = this.el.querySelector('.col-right');
+      const isLeftOpen = left && left.classList.contains('mobile-panel--open');
+      const isRightOpen = right && right.classList.contains('mobile-panel--open');
+
+      if (isLeftOpen || isRightOpen) {
+        if (this._mobileNav) {
+          this._mobileNav.switchTo('canvas');
+        }
+        _eatBack();
+        return;
+      }
+
+      // 没有任何可关闭的 UI — 退出 PWA
+      setTimeout(() => history.back(), 0);
+    });
   }
 }
 

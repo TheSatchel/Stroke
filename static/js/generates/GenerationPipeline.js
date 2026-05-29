@@ -7,7 +7,7 @@
  *   - 具体 HTTP 请求（委托 GeneratorService）
  *   - 存储持久化（委托 PersistenceGuard）
  */
-import { parse as parseSegments } from '../services/segmentparser.js';
+import { parse as parseSegments, computeContentFingerprint } from '../services/segmentparser.js';
 import { loadConfigs } from '../locals/storage.js';
 import { isRetryable, backoffDelay, MAX_RETRIES, BASE_DELAY_MS } from './RetryHandler.js';
 import WakeLockManager from './WakeLockManager.js';
@@ -38,12 +38,12 @@ import { formatResult } from './ResultFormatter.js';
 
 export default class GenerationPipeline {
   /**
-   * @param {import('../Adapter.js').GeneratorService} generatorService
+   * @param {import('../adapter.js').GeneratorService} generatorService
    * @param {import('../locals/LineageManager.js').default} lineageManager
    * @param {PipelineCallbacks} callbacks
    */
   constructor(generatorService, lineageManager, callbacks) {
-    /** @type {import('../Adapter.js').GeneratorService} */
+    /** @type {import('../adapter.js').GeneratorService} */
     this.generator = generatorService;
 
     /** @type {import('../locals/LineageManager.js').default} */
@@ -91,6 +91,8 @@ export default class GenerationPipeline {
     const firstCallConfig = Object.values(callWidgetConfigs || {})[0];
     const maskMode = firstCallConfig?.params?.mask_mode || 'transparent';
 
+    const lineageFingerprint = computeContentFingerprint(tabsConfig, tabValues);
+
     const taskPromises = segments.map(async (seg) => {
       const imageList = [...(seg.imageBase64List || [])];
       const originalImage = imageList.length > 0 ? imageList[0] : null;
@@ -130,7 +132,7 @@ export default class GenerationPipeline {
         imageBase64List: imageList,
         maskSpecs: seg.maskSpecs || [],
         configId: seg.configId,
-        fingerprint: seg.fingerprint || '',
+        fingerprint: lineageFingerprint,
         retryCount: 0,
         status: 'pending',
         result: null,
@@ -205,7 +207,7 @@ export default class GenerationPipeline {
 
         const imageList = [...task.imageBase64List];
         if (lastBase64 && !imageList.includes(lastBase64)) {
-          console.log(`[GenerationPipeline] 段(fp=${group.fingerprint}) 追加上游结果图`);
+          console.log(`[GenerationPipeline] 段(${task.callTabId}) 追加上游结果图`, lastBase64.substring(0, 40));
           imageList.push(lastBase64);
         }
 
@@ -227,7 +229,7 @@ export default class GenerationPipeline {
           }
         } catch (err) {
           task.status = 'failed';
-          console.error(`[GenerationPipeline] 段(fp=${group.fingerprint}) 最终失败:`, err);
+          console.error(`[GenerationPipeline] 段(${task.callTabId}) 最终失败:`, err);
           if (this.callbacks.onSegmentFail) {
             this.callbacks.onSegmentFail(task, err);
           }

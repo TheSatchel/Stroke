@@ -65,6 +65,8 @@
     background: var(--color-background-primary);
     transform: translateX(0);
     transition: transform 0.25s ease;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .col-left {

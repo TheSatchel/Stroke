@@ -5,6 +5,7 @@
 
 import { computeContentFingerprint } from '../services/segmentparser.js';
 import { showToast } from '../utils/Toast.js';
+import { showAlertModal } from '../utils/AlertModal.js';
 import GenerationPipeline from './GenerationPipeline.js';
 
 /**
@@ -13,7 +14,10 @@ import GenerationPipeline from './GenerationPipeline.js';
  * @param {import('../uis/App.js').default} app
  */
 export async function performGeneration(app) {
-  if (app._generatingFp) return;
+  if (app._generatingFp) {
+    showAlertModal('提示', '已有生成任务正在进行中，请等待当前任务完成');
+    return;
+  }
 
   const tabsConfig = app.config.tabsConfig;
   const tabValues = app.config.getTabValues();

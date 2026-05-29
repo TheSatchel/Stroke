@@ -5,33 +5,7 @@
 import { el } from '../../utils/DOM.js';
 import { clearAll } from '../../locals/storage.js';
 import { showToast, toggleConsoleForward } from '../../utils/Toast.js';
-
-function hexToHsl(hex) {
-  let r = 0, g = 0, b = 0;
-  hex = hex.replace('#', '');
-  if (hex.length === 3) {
-    r = parseInt(hex[0] + hex[0], 16);
-    g = parseInt(hex[1] + hex[1], 16);
-    b = parseInt(hex[2] + hex[2], 16);
-  } else {
-    r = parseInt(hex.substring(0, 2), 16);
-    g = parseInt(hex.substring(2, 4), 16);
-    b = parseInt(hex.substring(4, 6), 16);
-  }
-  r /= 255; g /= 255; b /= 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  let h = 0, s = 0, l = (max + min) / 2;
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
-      case g: h = ((b - r) / d + 2) / 6; break;
-      case b: h = ((r - g) / d + 4) / 6; break;
-    }
-  }
-  return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) };
-}
+import { hexToHsl } from '../../utils/ColorUtils.js';
 
 // ================================================================
 //  主题色系自动生成
@@ -230,12 +204,6 @@ export default class SettingsModal {
       style: 'width:100%;height:36px;padding:2px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:var(--color-background-primary);cursor:pointer'
     });
 
-    // 手机端右划关闭 overlay
-    let _touchX = 0;
-    this.overlay.addEventListener('touchstart', function(e) { _touchX = e.touches[0].clientX; }, { passive: true });
-    this.overlay.addEventListener('touchend', function(e) {
-      if (e.changedTouches[0].clientX - _touchX > 80) self.close();
-    });
     this.colorInput.addEventListener('input', function(e) {
       var hex = e.target.value;
       self.currentAccent = hex;

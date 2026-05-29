@@ -104,3 +104,12 @@ class Settings:
 
 
 settings = Settings()
+
+
+def load_server_config() -> dict:
+    """读取 server 段配置，供 serve.py / development.py 等入口复用"""
+    yaml_path = Path(__file__).resolve().parent.parent / "settings.yaml"
+    if not yaml_path.exists():
+        return {}
+    with open(yaml_path, encoding="utf-8") as f:
+        return (yaml.safe_load(f) or {}).get("server", {})

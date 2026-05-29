@@ -8,16 +8,8 @@
   python serve.py --debug      # 调试模式 (仅 ASGI, 开启 reload 单 worker)
 """
 import argparse
-import yaml
-import platform
-from pathlib import Path
 
-
-def load_server_config():
-    yaml_path = Path(__file__).resolve().parent / "settings.yaml"
-    with open(yaml_path, encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
-    return cfg.get("server", {})
+from app.config import load_server_config
 
 
 def run_asgi(host: str, port: int, workers: int, debug: bool = False):

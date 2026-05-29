@@ -238,6 +238,14 @@
     font-size: 22px;
   }
 
+  .canvas-img-delete {
+    width: 36px;
+    height: 36px;
+    font-size: 22px;
+    top: 12px;
+    right: 12px;
+  }
+
   .sel-marker {
     width: 18px;
     height: 18px;

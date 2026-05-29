@@ -13,6 +13,7 @@ export class XianyuGPTChatAdapter extends GPTChatAdapter {
   static get label() { return '咸鱼API (ChatGPT 通用)'; }
   static get defaultModel() { return 'gpt-image-2'; }
   static get defaultEndpoint() { return 'https://allgpt.xianyuw.cn/v1/chat/completions'; }
+  static get defaultConcurrency() { return 2; }
 
   static get models() {
     return [

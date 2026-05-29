@@ -72,7 +72,10 @@ export default class LineageManager {
 
     // 2. 创建新的 lineage（实例化，确保方法可用）
     const lineageId = 'lineage_' + Date.now();
+    const rawPrompt = (initialData.tabValues && initialData.tabValues.prompt) || '';
+    const name = rawPrompt.length > 60 ? rawPrompt.slice(0, 60) + '…' : rawPrompt;
     this.lineages[lineageId] = new Lineage({
+      name,
       fingerprint: contentFp,
       versions: [],
       tabValues: initialData.tabValues || {},

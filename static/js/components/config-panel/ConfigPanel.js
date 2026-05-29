@@ -13,6 +13,7 @@ import TabContextMenu from './TabContextMenu.js';
 import { makeTabSection } from './TabSectionBuilder.js';
 import RegionPromptManager from './RegionPromptManager.js';
 import ExportManager from './ExportManager.js';
+import { showAlertModal } from '../../utils/AlertModal.js';
 
 export default class ConfigPanel {
   /**
@@ -177,7 +178,8 @@ export default class ConfigPanel {
 
   removeTab(id) {
     const def = this.tabsConfig.find(t => t.id === id);
-    if (def && (def.id === 'prompt' || def.type === 'generate_call')) return;
+    if (def && def.removable === false) return;
+    if (def && def.id === 'prompt') return;
 
     if (def && def.type === 'region_prompt' && this._onRegionRemove && def.data?.label) {
       this._onRegionRemove(def.data.label);
@@ -220,7 +222,10 @@ export default class ConfigPanel {
   }
 
   doGen() {
-    if (window.__strokeApp && window.__strokeApp._generatingFp) return;
+    if (window.__strokeApp && window.__strokeApp._generatingFp) {
+      showAlertModal('提示', '已有生成任务正在进行中，请等待当前任务完成');
+      return;
+    }
     if (this.onGenerate) this.onGenerate();
   }
 

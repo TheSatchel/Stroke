@@ -41,7 +41,7 @@ export function makeTabSection(tabDef, dragManager, tabContextMenu, widgets, pan
   hdr.appendChild(handle);
   hdr.appendChild(el('span', 'drag-title', { text: tabDef.title || tabDef.id }));
 
-  if (isPinnedSection !== true && tabDef.removable !== false) {
+  if (tabDef.removable !== false && tabDef.id !== 'prompt') {
     hdr.addEventListener('dblclick', () => {
       panel.removeTab(tabDef.id);
     });

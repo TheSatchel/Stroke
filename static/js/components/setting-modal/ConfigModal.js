@@ -47,13 +47,6 @@ export default class ConfigModal {
     const body = el('div', 'sm-body');
     const self = this;
 
-    // 手机端右划关闭
-    let _touchX = 0;
-    this.overlay.addEventListener('touchstart', function(e) { _touchX = e.touches[0].clientX; }, { passive: true });
-    this.overlay.addEventListener('touchend', function(e) {
-      if (e.changedTouches[0].clientX - _touchX > 80) self.close();
-    });
-
     // --- 配置选择 ---
     const fCfg = el('div', 'sm-field');
     fCfg.appendChild(el('div', 'sm-label', { text: '配置' }));
@@ -120,6 +113,13 @@ export default class ConfigModal {
     this.apiKeyInput = el('input', 'sm-input', { type: 'password', placeholder: 'sk-...' });
     fKey.appendChild(this.apiKeyInput);
     body.appendChild(fKey);
+
+    // --- 并发数 ---
+    const fConc = el('div', 'sm-field');
+    fConc.appendChild(el('div', 'sm-label', { text: '并发数' }));
+    this.concurrencyInput = el('input', 'sm-input', { type: 'number', min: '1', max: '20', value: '3', placeholder: '1-20' });
+    fConc.appendChild(this.concurrencyInput);
+    body.appendChild(fConc);
 
     // --- 端点 URL ---
     const fEp = el('div', 'sm-field');
@@ -195,6 +195,11 @@ export default class ConfigModal {
       this.endpointInput.value = Cls.defaultEndpoint;
     } else {
       this.endpointInput.value = '';
+    }
+
+    // 并发数默认值
+    if (Cls && typeof Cls.defaultConcurrency === 'number') {
+      this.concurrencyInput.value = Cls.defaultConcurrency;
     }
 
     // 模型列表
@@ -279,6 +284,7 @@ export default class ConfigModal {
     if (this.nameInput) this.nameInput.value = '';
     if (this.apiKeyInput) this.apiKeyInput.value = '';
     if (this.endpointInput) this.endpointInput.value = '';
+    if (this.concurrencyInput) this.concurrencyInput.value = '3';
     this._currentModel = '';
     this._currentFallbackModel = null;
     this._updateModelHint();
@@ -299,6 +305,7 @@ export default class ConfigModal {
     this._updateModelHint();
     this._provChange();
     if (this.endpointInput) this.endpointInput.value = cfg.endpoint || '';
+    if (this.concurrencyInput) this.concurrencyInput.value = cfg.concurrency || 3;
     const self = this;
     setTimeout(() => {
       if (cfg.params) {
@@ -327,6 +334,7 @@ export default class ConfigModal {
       endpoint: this.endpointInput ? this.endpointInput.value : '',
       model: this._currentModel,
       fallbackModel: this._currentFallbackModel || null,
+      concurrency: parseInt(this.concurrencyInput ? this.concurrencyInput.value : '3', 10) || 3,
       params: params
     };
 

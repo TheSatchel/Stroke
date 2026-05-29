@@ -16,6 +16,7 @@ export class GPTChatAdapter extends BaseAdapters {
   static get label() { return 'OpenAI Chat API'; }
   static get defaultModel() { return 'gpt-4o'; }
   static get defaultEndpoint() { return 'https://api.openai.com/v1/chat/completions'; }
+  static get defaultConcurrency() { return 3; }
 
   static get models() {
     return [

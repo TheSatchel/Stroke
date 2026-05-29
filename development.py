@@ -3,17 +3,12 @@
 用法: python development.py
 """
 import uvicorn
-import yaml
-from pathlib import Path
+
+from app.config import load_server_config
 
 
 def main():
-    # 读取配置
-    yaml_path = Path(__file__).resolve().parent / "settings.yaml"
-    with open(yaml_path, encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
-
-    server = cfg.get("server", {})
+    server = load_server_config()
     host = server.get("host", "127.0.0.1")
     port = server.get("port", 8000)
 

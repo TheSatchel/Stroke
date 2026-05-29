@@ -1,11 +1,11 @@
 /**
- * Generator.js — 生成器注册中心
+ * adapter.js — 生成器注册中心
  *
  * 统一管理所有平台生成器实现。
  * 不直接处理 HTTP 请求，只做注册、切换、协调。
  *
  * 使用示例：
- *   import { GeneratorService } from './Adapter.js';
+ *   import { GeneratorService } from './adapter.js';
  *   const gen = new GeneratorService();
  *   gen.use('openai', { apiKey: 'sk-...', model: 'dall-e-3' });
  *   const svg = await gen.generate({ prompt, imageBase64 });
