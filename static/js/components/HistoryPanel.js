@@ -230,30 +230,14 @@ export default class HistoryPanel {
         return;
       }
 
-      // 需要步进器，缺失则添加
+      // 需要步进器，缺失则添加；已存在则重建保证状态正确
       if (!stepper) {
         if (meta) meta.appendChild(this._renderVersionStepper(item, i));
         return;
       }
 
-      // 版本总数变化，重建
-      const dotCount = stepper.querySelectorAll('.ver-dot').length;
-      if (dotCount !== item.versionCount) {
-        stepper.remove();
-        if (meta) meta.appendChild(this._renderVersionStepper(item, i));
-        return;
-      }
-
-      // 更新现有步进器状态
-      stepper.querySelectorAll('.ver-dot').forEach((dot, d) => {
-        dot.classList.toggle('active', d === item.versionActive);
-      });
-      const arrows = stepper.querySelectorAll('.ver-step-arrow');
-      if (arrows[0]) arrows[0].disabled = item.versionActive <= 0;
-      if (arrows[1]) arrows[1].disabled = item.versionActive >= item.versionCount - 1;
-      stepper.querySelectorAll('.ver-num').forEach((btn, v) => {
-        btn.classList.toggle('active', v === item.versionActive);
-      });
+      stepper.remove();
+      if (meta) meta.appendChild(this._renderVersionStepper(item, i));
     });
 
     // 更新缩略图（支持 SVG 和光栅图）
