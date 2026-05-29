@@ -6,6 +6,8 @@
 .right-body {
   flex: 1;
   overflow-y: auto;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
 }
 
 .right-footer {
