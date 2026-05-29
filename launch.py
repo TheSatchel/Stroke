@@ -27,7 +27,17 @@ MODEL_FILE = ROOT / "static" / "models" / "Xenova" / "segformer-b2-finetuned-ade
 VENDOR_FILE = ROOT / "static" / "js" / "vendor" / "transformers-3.0.0.min.js"
 TR_JS_CDN = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0/dist/transformers.min.js"
 VENDOR_MD5 = "0EC705720DF86FCC95898D5D9571106A"
-MODEL_MD5 = "4DAD0B17A4EE37EDB4E12EE50D6971A3"
+
+MODEL_DIR = ROOT / "static" / "models" / "Xenova" / "segformer-b2-finetuned-ade-512-512"
+
+MODEL_FILES = {
+    "config.json":              "87C54C825CE10A8EB319B9A19AEA77A9",
+    "preprocessor_config.json": "27C6A66BFDAEFC75770063399A7142F8",
+    "quantize_config.json":     "0DAAF3427588E4FD25403F3E99D11A7C",
+    "onnx/model.onnx":          "85BD0E40FBCA7BC1276A944753176076",
+    "onnx/model_fp16.onnx":     "103598CD6F81B4E76782B9DE6AEC40BE",
+    "onnx/model_quantized.onnx":"4DAD0B17A4EE37EDB4E12EE50D6971A3",
+}
 
 
 def install_deps():
@@ -73,19 +83,22 @@ def check_vendor():
 
 
 def check_model():
-    if _file_intact(MODEL_FILE, MODEL_MD5):
+    broken = [f for f, h in MODEL_FILES.items() if not _file_intact(MODEL_DIR / f, h)]
+    if not broken:
         return True
-    if MODEL_FILE.exists():
-        print("\nAI 分割模型不完整，重新下载...")
-    else:
-        print("\nAI 分割模型未找到，正在下载 (~190 MB)...")
+
+    print(f"\nAI 分割模型不完整 ({' '.join(broken)})，重新下载...")
     script = ROOT / "scripts" / "download_seg_model.py"
     if not script.exists():
         print("  下载脚本不存在，跳过.")
         return False
     try:
         subprocess.check_call([sys.executable, str(script)])
-        return _file_intact(MODEL_FILE, MODEL_MD5)
+        still_broken = [f for f, h in MODEL_FILES.items() if not _file_intact(MODEL_DIR / f, h)]
+        if not still_broken:
+            return True
+        print(f"  下载后仍有文件校验失败: {' '.join(still_broken)}")
+        return False
     except subprocess.CalledProcessError:
         print("  模型下载失败，AI 分割功能将不可用.")
         return False
