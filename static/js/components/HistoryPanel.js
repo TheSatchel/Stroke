@@ -54,11 +54,9 @@ export default class HistoryPanel {
       : this.items;
 
     this.listEl = el('div', 'history-list');
-    this.listWrap = el('div', '', { style: 'direction:ltr' });
-    this.listEl.appendChild(this.listWrap);
     if (filtered.length === 0) {
       const emptyMsg = el('div', '', { text: this._searchQuery ? '无匹配结果' : '暂无历史版本', style: 'text-align:center;padding:20px 8px;font-size:12px;color:var(--color-text-tertiary)' });
-      this.listWrap.appendChild(emptyMsg);
+      this.listEl.appendChild(emptyMsg);
     }
     filtered.forEach((item, i) => {
       const div = el('div', 'hist-item' + (item.active ? ' active' : ''), {
@@ -113,7 +111,7 @@ export default class HistoryPanel {
 
       div.appendChild(thumb);
       div.appendChild(meta);
-      this.listWrap.appendChild(div);
+      this.listEl.appendChild(div);
     });
     this.container.appendChild(this.listEl);
 
@@ -160,7 +158,7 @@ export default class HistoryPanel {
 
   select(i) {
     this.items.forEach((it, idx) => it.active = idx === i);
-    this.listWrap.querySelectorAll('.hist-item').forEach((el, idx) => el.classList.toggle('active', idx === i));
+    this.listEl.querySelectorAll('.hist-item').forEach((el, idx) => el.classList.toggle('active', idx === i));
     if (this.onSelect) this.onSelect(i);
   }
 
@@ -168,68 +166,43 @@ export default class HistoryPanel {
   _renderVersionStepper(item, itemIndex) {
     const wrap = el('div', 'ver-stepper');
 
-    // 左箭头
-    const prevBtn = el('button', 'ver-step-arrow', {
-      html: '◀',
-      disabled: item.versionActive <= 0,
-      onclick: (e) => {
-        e.stopPropagation();
-        this.selectVersion(itemIndex, item.versionActive - 1);
-      }
-    });
-    wrap.appendChild(prevBtn);
+    if (item.versionCount <= 1) return wrap;
+    const currentIdx = item.currentVersionIndex || 0;
 
-    // 暗亮点（无标签）
-    const dotsWrap = el('div', 'ver-dots-row');
-    for (let d = 0; d < item.versionCount; d++) {
-      dotsWrap.appendChild(
-        el('span', 'ver-dot' + (d === item.versionActive ? ' active' : ''))
-      );
-    }
-    wrap.appendChild(dotsWrap);
+    // 箭头左
+    const btnPrev = el('button', 'ver-step-btn', { text: '⟨' });
+    btnPrev.disabled = currentIdx === 0;
+    btnPrev.addEventListener('click', (e) => { e.stopPropagation(); this._stepVersion(itemIndex, currentIdx - 1); });
+    wrap.appendChild(btnPrev);
 
-    // 右箭头
-    const nextBtn = el('button', 'ver-step-arrow', {
-      html: '▶',
-      disabled: item.versionActive >= item.versionCount - 1,
-      onclick: (e) => {
-        e.stopPropagation();
-        this.selectVersion(itemIndex, item.versionActive + 1);
-      }
-    });
-    wrap.appendChild(nextBtn);
+    wrap.appendChild(el('span', 'ver-step-indicator', { text: `${currentIdx + 1}/${item.versionCount}` }));
 
-    // 横向可滚动数字行
-    const numScrollOuter = el('div', 'ver-num-scroll');
-    const numRow = el('div', 'ver-num-row');
-    for (let v = 0; v < item.versionCount; v++) {
-      const numBtn = el('button', 'ver-num' + (v === item.versionActive ? ' active' : ''), {
-        text: String(v + 1),
-        onclick: (e) => {
-          e.stopPropagation();
-          this.selectVersion(itemIndex, v);
-        }
-      });
-      numRow.appendChild(numBtn);
-    }
-    numScrollOuter.appendChild(numRow);
-    wrap.appendChild(numScrollOuter);
+    // 箭头右
+    const btnNext = el('button', 'ver-step-btn', { text: '⟩' });
+    btnNext.disabled = currentIdx >= item.versionCount - 1;
+    btnNext.addEventListener('click', (e) => { e.stopPropagation(); this._stepVersion(itemIndex, currentIdx + 1); });
+    wrap.appendChild(btnNext);
 
     return wrap;
   }
 
-  selectVersion(itemIndex, versionIndex) {
+  _stepVersion(itemIndex, versionIndex) {
+    if (versionIndex < 0 || versionIndex >= this.items[itemIndex].versionCount) return;
+    this.items[itemIndex].currentVersionIndex = versionIndex;
     const item = this.items[itemIndex];
-    if (!item) return;
-    if (versionIndex < 0 || versionIndex >= item.versionCount) return;
-    item.versionActive = versionIndex;
-    this._refreshStepper();
+    const versions = item.versionEntries || [];
+    const entry = versions[versionIndex];
+    if (entry) {
+      item.thumbnail = entry.thumbnail;
+      item.bg = entry.bg;
+    }
+    this.render();
     if (this.onVersionSwitch) this.onVersionSwitch(itemIndex, versionIndex);
   }
 
   _refreshStepper() {
     this.items.forEach((item, i) => {
-      const itemEl = this.listWrap.children[i];
+      const itemEl = this.listEl.children[i];
       if (!itemEl) return;
       const meta = itemEl.querySelector('.hist-meta');
       const stepper = itemEl.querySelector('.ver-stepper');
@@ -268,7 +241,7 @@ export default class HistoryPanel {
 
     // 更新缩略图（支持 SVG 和光栅图）
     this.items.forEach((item, i) => {
-      const itemEl = this.listWrap.children[i];
+      const itemEl = this.listEl.children[i];
       if (!itemEl) return;
       const thumb = itemEl.querySelector('.hist-thumb');
       if (!thumb) return;
