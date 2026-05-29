@@ -147,7 +147,6 @@ export default class Canvas {
       if (!this._generatedImageDataUrl) return;
       this._isShowingUserImage = true;
       this._userImageDataUrl = this._generatedImageDataUrl;
-      if (this.onCanvasImage) this.onCanvasImage(this._generatedImageDataUrl);
     }
 
     const xy = this._extractXY(e);
