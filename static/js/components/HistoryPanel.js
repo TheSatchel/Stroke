@@ -147,16 +147,14 @@ export default class HistoryPanel {
   _sizeGrid() {
     if (window.innerWidth > 767) return;
     requestAnimationFrame(() => {
-      const container = this.listEl && this.listEl.closest('.col-left');
-      if (!container) return;
-      const headerH = container.querySelector('.col-header')?.offsetHeight || 60;
-      const searchH = container.querySelector('.hist-search-wrap')?.offsetHeight || 52;
-      const availableH = container.clientHeight - headerH - searchH - 16;
+      const list = this.listEl;
+      if (!list || !list.parentNode) return;
+      const availableH = list.clientHeight;
       const gap = 8;
       const rows = 3;
       const rowH = Math.floor((availableH - gap * (rows - 1)) / rows);
       if (rowH > 0) {
-        this.listEl.style.gridAutoRows = rowH + 'px';
+        list.style.gridAutoRows = rowH + 'px';
       }
     });
   }

@@ -46,11 +46,6 @@
 
 /* ---- Mobile ---- */
 @media (max-width: 767px) {
-  .right-body {
-    flex: none;
-    overflow-y: visible;
-  }
-
   .right-footer {
     padding: 14px 16px 16px;
   }
