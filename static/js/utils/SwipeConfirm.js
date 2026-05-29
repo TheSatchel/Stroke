@@ -64,8 +64,9 @@ export default class SwipeConfirm {
     this.track.addEventListener('touchstart', this._onStart, { passive: false });
     this.track.addEventListener('mousedown', this._onStart);
 
-    document.addEventListener('touchmove', this._onMove, { passive: false });
-    document.addEventListener('mousemove', this._onMove);
+    this.track.addEventListener('touchmove', this._onMove, { passive: false });
+    this.track.addEventListener('mousemove', this._onMove);
+
     document.addEventListener('touchend', this._onEnd);
     document.addEventListener('mouseup', this._onEnd);
   }
@@ -83,23 +84,12 @@ export default class SwipeConfirm {
     const trackRect = this.track.getBoundingClientRect();
     this.trackWidth = trackRect.width;
     this.handleWidth = this.handle.clientWidth;
-    this._startClientX = this._getClientX(e);
-    this._startClientY = e.touches ? e.touches[0].clientY : e.clientY;
-    this.startX = this._startClientX - this.handle.offsetLeft;
+    this.startX = this._getClientX(e) - this.handle.offsetLeft;
     this.handle.style.transition = 'none';
   };
 
   _onMove = (e) => {
     if (!this.dragging) return;
-    if (!this._swipeLocked) {
-      const cy = e.touches ? e.touches[0].clientY : e.clientY;
-      const cx = this._getClientX(e);
-      const dx = Math.abs(cx - this._startClientX);
-      const dy = Math.abs(cy - this._startClientY);
-      if (dx < 8 && dy < 8) return;
-      if (dy > dx) { this._onEnd(e); return; }
-      this._swipeLocked = true;
-    }
     e.preventDefault();
     this.currentX = this._getClientX(e) - this.startX;
     const maxX = this.trackWidth - this.handleWidth;
@@ -113,7 +103,6 @@ export default class SwipeConfirm {
   _onEnd = (e) => {
     if (!this.dragging) return;
     this.dragging = false;
-    this._swipeLocked = false;
     this.handle.style.transition = `transform ${SNAP_DURATION}ms ease-out`;
 
     const maxX = this.trackWidth - this.handleWidth;
@@ -133,8 +122,8 @@ export default class SwipeConfirm {
 
   /** 销毁组件，移除事件监听 */
   destroy() {
-    document.removeEventListener('touchmove', this._onMove);
-    document.removeEventListener('mousemove', this._onMove);
+    this.track.removeEventListener('touchmove', this._onMove);
+    this.track.removeEventListener('mousemove', this._onMove);
     document.removeEventListener('touchend', this._onEnd);
     document.removeEventListener('mouseup', this._onEnd);
     if (this.wrapper && this.wrapper.parentNode) {
