@@ -146,16 +146,17 @@
 @media (max-width: 767px) {
   .history-list {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
   }
 
   .hist-item {
     margin-bottom: 0;
+    min-width: 0;
   }
 
   .hist-thumb {
-    aspect-ratio: 2 / 3;
+    aspect-ratio: 3 / 4;
   }
 
   .hist-meta {
