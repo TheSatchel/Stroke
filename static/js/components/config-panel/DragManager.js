@@ -121,9 +121,10 @@ export default class DragManager {
   tMove(e) {
     if (!this._touchDrag) return;
     const touch = e.touches[0];
-    const dy = touch.clientY - this._touchDrag.startY;
-    const dx = touch.clientX - this._touchDrag.startX;
-    if (!this._touchDrag.started && Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+    const dy = Math.abs(touch.clientY - this._touchDrag.startY);
+    const dx = Math.abs(touch.clientX - this._touchDrag.startX);
+    if (!this._touchDrag.started && dx < 8 && dy < 8) return;
+    if (!this._touchDrag.started && dy > dx) { this._touchDrag = null; return; }
     e.preventDefault();
     this._touchDrag.started = true;
     this._touchDrag.ghost.style.left = (touch.clientX - 60) + 'px';
