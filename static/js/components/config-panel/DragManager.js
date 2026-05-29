@@ -120,7 +120,6 @@ export default class DragManager {
 
   tMove(e) {
     if (!this._touchDrag) return;
-    e.preventDefault();
     const touch = e.touches[0];
     const dy = Math.abs(touch.clientY - this._touchDrag.startY);
     const dx = Math.abs(touch.clientX - this._touchDrag.startX);

@@ -90,7 +90,6 @@ export default class SwipeConfirm {
 
   _onMove = (e) => {
     if (!this.dragging) return;
-    e.preventDefault();
     this.currentX = this._getClientX(e) - this.startX;
     const maxX = this.trackWidth - this.handleWidth;
     const clamped = Math.max(0, Math.min(maxX, this.currentX));
