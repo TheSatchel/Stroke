@@ -67,8 +67,9 @@
     background: var(--color-background-primary);
     transform: translateX(0);
     transition: transform 0.25s ease;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
   }
 
   .col-left {
