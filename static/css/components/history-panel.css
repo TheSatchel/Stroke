@@ -155,7 +155,7 @@
   }
 
   .hist-thumb {
-    aspect-ratio: 1;
+    aspect-ratio: 2 / 3;
   }
 
   .hist-meta {
