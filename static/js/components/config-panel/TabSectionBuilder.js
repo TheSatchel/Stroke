@@ -28,9 +28,6 @@ export function makeTabSection(tabDef, dragManager, tabContextMenu, widgets, pan
   if (!isPinnedSection) {
     hdr.addEventListener('dragstart', e => dragManager.dStart(e));
     hdr.addEventListener('dragend', e => dragManager.dEnd(e));
-    hdr.addEventListener('touchstart', e => dragManager.tStart(e), { passive: false });
-    hdr.addEventListener('touchmove', e => dragManager.tMove(e), { passive: false });
-    hdr.addEventListener('touchend', e => dragManager.tEnd(e));
   }
   const handle = el('div', 'drag-handle');
   if (isPinnedSection) {

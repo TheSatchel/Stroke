@@ -227,7 +227,6 @@
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
-  touch-action: pan-y;
   background: var(--color-background-secondary);
   border: 1px solid var(--color-border-secondary);
   --swipe-progress: 0;
@@ -267,7 +266,6 @@
   justify-content: center;
   cursor: grab;
   z-index: 1;
-  touch-action: pan-y;
 }
 
 .swipe-confirm-handle:active {

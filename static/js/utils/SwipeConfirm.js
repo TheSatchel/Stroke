@@ -61,13 +61,10 @@ export default class SwipeConfirm {
   }
 
   _bindEvents() {
-    this.track.addEventListener('touchstart', this._onStart, { passive: false });
     this.track.addEventListener('mousedown', this._onStart);
 
-    this.track.addEventListener('touchmove', this._onMove, { passive: false });
     this.track.addEventListener('mousemove', this._onMove);
 
-    document.addEventListener('touchend', this._onEnd);
     document.addEventListener('mouseup', this._onEnd);
   }
 
@@ -121,9 +118,7 @@ export default class SwipeConfirm {
 
   /** 销毁组件，移除事件监听 */
   destroy() {
-    this.track.removeEventListener('touchmove', this._onMove);
     this.track.removeEventListener('mousemove', this._onMove);
-    document.removeEventListener('touchend', this._onEnd);
     document.removeEventListener('mouseup', this._onEnd);
     if (this.wrapper && this.wrapper.parentNode) {
       this.wrapper.parentNode.removeChild(this.wrapper);
