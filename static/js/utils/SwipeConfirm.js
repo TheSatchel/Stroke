@@ -61,10 +61,9 @@ export default class SwipeConfirm {
   }
 
   _bindEvents() {
-    this.handle.addEventListener('touchstart', this._onStart, { passive: false });
-    this.handle.addEventListener('mousedown', this._onStart);
+    this.track.addEventListener('touchstart', this._onStart, { passive: false });
+    this.track.addEventListener('mousedown', this._onStart);
 
-    // 全局 move/end（防止手指滑出轨道）
     document.addEventListener('touchmove', this._onMove, { passive: false });
     document.addEventListener('mousemove', this._onMove);
     document.addEventListener('touchend', this._onEnd);
@@ -79,10 +78,11 @@ export default class SwipeConfirm {
 
   _onStart = (e) => {
     if (this.confirmed) return;
-    if (e.type === 'mousedown' && e.which !== 1) return; // 仅左键
+    if (e.type === 'mousedown' && e.which !== 1) return;
     e.preventDefault();
     this.dragging = true;
-    this.trackWidth = this.track.clientWidth;
+    const trackRect = this.track.getBoundingClientRect();
+    this.trackWidth = trackRect.width;
     this.handleWidth = this.handle.clientWidth;
     this.startX = this._getClientX(e) - this.handle.offsetLeft;
     this.handle.style.transition = 'none';
