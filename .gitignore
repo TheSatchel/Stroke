@@ -40,3 +40,6 @@ static/js/vendor/
 
 # Source maps
 *.map
+
+# Rules (opencode internal)
+rules/
