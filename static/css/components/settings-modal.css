@@ -227,6 +227,7 @@
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
+  touch-action: pan-y;
   background: var(--color-background-secondary);
   border: 1px solid var(--color-border-secondary);
   --swipe-progress: 0;
