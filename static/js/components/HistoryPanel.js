@@ -53,7 +53,7 @@ export default class HistoryPanel {
       ? this.items.filter(item => matchLabel(item.label, keywords))
       : this.items;
 
-    this.listEl = el('div', 'history-list', { style: 'flex:1;overflow-y:auto;overflow-x:hidden;padding:8px;direction:rtl' });
+    this.listEl = el('div', 'history-list');
     this.listWrap = el('div', '', { style: 'direction:ltr' });
     this.listEl.appendChild(this.listWrap);
     if (filtered.length === 0) {
