@@ -115,12 +115,17 @@ export default class DragManager {
     document.body.appendChild(ghost);
 
     elm.classList.add('drag-section--dragging');
-    this._touchDrag = { elm, ghost, startY: touch.clientY, moved: false };
+    this._touchDrag = { elm, ghost, startY: touch.clientY, startX: touch.clientX, moved: false, started: false };
   }
 
   tMove(e) {
     if (!this._touchDrag) return;
+    const touch = e.touches[0];
+    const dy = touch.clientY - this._touchDrag.startY;
+    const dx = touch.clientX - this._touchDrag.startX;
+    if (!this._touchDrag.started && Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
     e.preventDefault();
+    this._touchDrag.started = true;
     const touch = e.touches[0];
     this._touchDrag.ghost.style.left = (touch.clientX - 60) + 'px';
     this._touchDrag.ghost.style.top = (touch.clientY - 15) + 'px';

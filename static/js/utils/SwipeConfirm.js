@@ -79,7 +79,6 @@ export default class SwipeConfirm {
   _onStart = (e) => {
     if (this.confirmed) return;
     if (e.type === 'mousedown' && e.which !== 1) return;
-    e.preventDefault();
     this.dragging = true;
     const trackRect = this.track.getBoundingClientRect();
     this.trackWidth = trackRect.width;
