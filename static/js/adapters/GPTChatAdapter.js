@@ -225,6 +225,22 @@ export class GPTChatAdapter extends BaseAdapters {
         throw new Error('API 请求失败: ' + errDetail);
       }
 
+      // HTTP 200 但响应包含 error 字段 (如内容政策违规等)
+      if (data && data.error) {
+        const errDetail = data.error.message || JSON.stringify(data.error);
+        showToast(`${label} API 返回错误: ${errDetail}`, 'error', 12000);
+        throw new Error('API 返回错误: ' + errDetail);
+      }
+
+      const noChoices = !data || !data.choices || !data.choices[0] || !data.choices[0].message;
+      if (noChoices) {
+        const rawJson = JSON.stringify(data, null, 2);
+        console.error(`[${adapterId}] 响应中未找到 choices，raw:`, rawJson);
+        const reason = data?.error?.message || data?.message || JSON.stringify(data);
+        showToast(`${label} 图片生成失败: ${reason}`, 'error', 12000);
+        throw new Error('API 响应中未找到图片数据');
+      }
+
       // 解析响应 → ImageResult
       try {
         const rawText = data.choices[0].message.content;

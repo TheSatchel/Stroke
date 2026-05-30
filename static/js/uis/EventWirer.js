@@ -31,7 +31,13 @@ export default class EventWirer {
       if (lineage) {
         await lineage.hydrateVersion(item.versionActive, loadVersionBinary, item.lineageId);
         const v = lineage.getVersion(item.versionActive);
-        if (v) self.canvas.loadVersion(v);
+        if (v) {
+          self.canvas.loadVersion(v);
+        } else {
+          self.canvas.clear();
+        }
+      } else {
+        self.canvas.clear();
       }
       self.config.setDownloadLineage(item.lineageId, item.versionActive);
       this._restoreRegionOverlays();
@@ -56,7 +62,13 @@ export default class EventWirer {
         }
         await lineage.hydrateVersion(versionIndex, loadVersionBinary, item.lineageId);
         const v = lineage.getVersion(versionIndex);
-        if (v) self.canvas.loadVersion(v);
+        if (v) {
+          self.canvas.loadVersion(v);
+        } else {
+          self.canvas.clear();
+        }
+      } else {
+        self.canvas.clear();
       }
       self.config.setDownloadLineage(item.lineageId, versionIndex);
       this._restoreRegionOverlays();
