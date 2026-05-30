@@ -80,6 +80,7 @@ export default class EventWirer {
       this.rebuildHistoryItems();
       self.history.render();
       saveAppState(self);
+      if (self._mobileNav) self._mobileNav.switchTo('canvas');
     };
 
     // 删除历史项
