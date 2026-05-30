@@ -82,6 +82,7 @@ export default class HistoryPanel {
           html: '当前',
           style: 'position:absolute;top:5px;right:7px;background:#EAF3DE;color:#3B6D11;font-size:10px;font-weight:500;padding:1px 6px;border-radius:4px'
         });
+        badge.setAttribute('data-badge', 'current');
         thumb.appendChild(badge);
       }
 
@@ -176,8 +177,25 @@ export default class HistoryPanel {
   }
 
   select(i) {
-    this.items.forEach((it, idx) => it.active = idx === i);
-    this.listEl.querySelectorAll('.hist-item').forEach((el, idx) => el.classList.toggle('active', idx === i));
+    this.items.forEach((it, idx) => {
+      it.current = idx === i;
+      it.active = idx === i;
+    });
+    const items = this.listEl.querySelectorAll('.hist-item');
+    items.forEach((el, idx) => {
+      el.classList.toggle('active', idx === i);
+      const thumb = el.querySelector('.hist-thumb');
+      if (!thumb) return;
+      const oldBadge = thumb.querySelector('[data-badge="current"]');
+      if (oldBadge) oldBadge.remove();
+      if (idx === i) {
+        const badge = document.createElement('span');
+        badge.setAttribute('data-badge', 'current');
+        badge.style.cssText = 'position:absolute;top:5px;right:7px;background:#EAF3DE;color:#3B6D11;font-size:10px;font-weight:500;padding:1px 6px;border-radius:4px';
+        badge.textContent = '当前';
+        thumb.appendChild(badge);
+      }
+    });
     if (this.onSelect) this.onSelect(i);
   }
 
