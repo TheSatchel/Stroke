@@ -31,7 +31,9 @@ export default class HistoryPanel {
   }
 
   render() {
+    const hadOpen = this.container.classList.contains('mobile-panel--open');
     this.container.className = 'col-left';
+    if (hadOpen) this.container.classList.add('mobile-panel--open');
     this.container.innerHTML = '';
 
     const header = el('div', 'col-header');

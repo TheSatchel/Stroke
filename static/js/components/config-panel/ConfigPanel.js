@@ -46,7 +46,9 @@ export default class ConfigPanel {
   //  全量渲染
   // ================================================================
   render() {
+    const hadOpen = this.container.classList.contains('mobile-panel--open');
     this.container.className = 'col-right';
+    if (hadOpen) this.container.classList.add('mobile-panel--open');
     this.container.innerHTML = '';
     this.widgets = {};
 
