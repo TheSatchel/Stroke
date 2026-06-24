@@ -16,7 +16,7 @@ export function showAlertModal(title, message, okText = '确定') {
   modal.appendChild(hdr);
 
   const body = el('div', 'sm-body');
-  body.appendChild(el('p', '', { text: message, style: 'line-height:1.6;color:var(--text);' }));
+  body.appendChild(el('p', 'alert-modal-msg', { text: message, style: 'white-space:pre-line;line-height:1.6;color:var(--color-text-primary);' }));
   modal.appendChild(body);
 
   const footer = el('div', 'sm-footer');

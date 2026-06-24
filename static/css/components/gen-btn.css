@@ -25,6 +25,16 @@
   cursor: not-allowed;
 }
 
+.gen-btn--full {
+  background: var(--color-border-secondary);
+  color: var(--color-text-tertiary);
+  cursor: not-allowed;
+}
+
+.gen-btn--full:hover {
+  background: var(--color-border-secondary);
+}
+
 /* ---- Mobile ---- */
 @media (max-width: 767px) {
   .gen-btn {

@@ -59,10 +59,96 @@ export default class Canvas {
   isShowingUserImage() { return this._isShowingUserImage; }
   getUserImageDataUrl() { return this._userImageDataUrl; }
 
-  setCanvasImage(dataUrl) { this._imageManager.setCanvasImage(dataUrl); }
-  clear() { this._imageManager.clear(); }
-  loadVersion(r) { this._imageManager.loadVersion(r); }
+  setCanvasImage(dataUrl) {
+    this.canvasImg.classList.remove('canvas-img--generating', 'canvas-img--failed');
+    this._killGenTimer();
+    this._imageManager.setCanvasImage(dataUrl);
+  }
+  clear() {
+    this.canvasImg.classList.remove('canvas-img--generating', 'canvas-img--failed');
+    this._killGenTimer();
+    this._imageManager.clear();
+  }
+  loadVersion(r) {
+    this.canvasImg.classList.remove('canvas-img--generating', 'canvas-img--failed');
+    this._killGenTimer();
+    this._imageManager.loadVersion(r);
+  }
   showHistory(i) { this._imageManager.showHistory(i); }
+
+  setGenerating(active, startTime) {
+    this._clearGenState();
+    if (!active) return;
+
+    const start = typeof startTime === 'number' && !isNaN(startTime) ? startTime : Date.now();
+
+    this.canvasImg.classList.add('canvas-img--generating');
+    if (this.cph) this.cph.style.display = 'none';
+
+    const overlay = el('div', 'canvas-gen-overlay');
+    const glow = el('div', 'canvas-gen-glow');
+    const spinner = el('div', 'canvas-gen-spinner');
+    const timer = el('div', 'canvas-gen-timer');
+    const label = el('div', 'canvas-gen-label', { text: '生成中...' });
+    overlay.appendChild(glow);
+    overlay.appendChild(spinner);
+    overlay.appendChild(timer);
+    overlay.appendChild(label);
+
+    const updateTimer = () => {
+      const elapsed = Math.floor((Date.now() - start) / 1000);
+      const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
+      const s = (elapsed % 60).toString().padStart(2, '0');
+      timer.textContent = `${m}:${s}`;
+    };
+    updateTimer();
+    this._genTimer = setInterval(updateTimer, 1000);
+
+    this._genOverlay = overlay;
+    this.canvasImg.appendChild(overlay);
+  }
+
+  setFailed(startTime) {
+    this._clearGenState();
+    this.canvasImg.classList.add('canvas-img--failed');
+    if (this.cph) this.cph.style.display = 'none';
+
+    const overlay = el('div', 'canvas-gen-overlay');
+    const glow = el('div', 'canvas-gen-glow');
+    const icon = el('div', 'canvas-gen-fail-icon', { html: '&#10060;' });
+    const timer = el('div', 'canvas-gen-timer');
+    const label = el('div', 'canvas-gen-label', { text: '生成失败' });
+
+    const start = typeof startTime === 'number' && !isNaN(startTime) ? startTime : Date.now();
+    const elapsed = Math.floor((Date.now() - start) / 1000);
+    const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
+    const s = (elapsed % 60).toString().padStart(2, '0');
+    timer.textContent = `${m}:${s}`;
+
+    overlay.appendChild(glow);
+    overlay.appendChild(icon);
+    overlay.appendChild(timer);
+    overlay.appendChild(label);
+
+    this._genOverlay = overlay;
+    this.canvasImg.appendChild(overlay);
+  }
+
+  _killGenTimer() {
+    if (this._genTimer) {
+      clearInterval(this._genTimer);
+      this._genTimer = null;
+    }
+  }
+
+  _clearGenState() {
+    this.canvasImg.classList.remove('canvas-img--generating', 'canvas-img--failed');
+    this._killGenTimer();
+    if (this._genOverlay) {
+      this._genOverlay.remove();
+      this._genOverlay = null;
+    }
+  }
 
   addConfirmedSelection(label, data) { this._selManager.addConfirmedSelection(label, data); }
   removeConfirmedSelection(label) { this._selManager.removeConfirmedSelection(label); }

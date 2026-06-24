@@ -57,6 +57,148 @@
   user-drag: none;
 }
 
+/* ---- Generating & Failed Overlay ---- */
+
+.canvas-img--generating,
+.canvas-img--failed {
+  position: relative;
+  overflow: visible;
+}
+
+/* Overlay: dark backdrop + shimmer sweep */
+.canvas-gen-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  pointer-events: none;
+  border-radius: var(--border-radius-lg);
+  background:
+    linear-gradient(
+      105deg,
+      transparent 30%,
+      rgba(255, 255, 255, 0.12) 50%,
+      transparent 70%
+    );
+  background-size: 200% 100%;
+  animation: canvas-shimmer 2s linear infinite;
+}
+
+/* Subtle dark vignette behind timer for legibility on light images */
+.canvas-gen-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(0, 0, 0, 0.25) 0%,
+    transparent 70%
+  );
+}
+
+/* Failed variant: red-tinted shimmer */
+.canvas-img--failed .canvas-gen-overlay {
+  background:
+    linear-gradient(
+      105deg,
+      transparent 30%,
+      rgba(229, 29, 72, 0.15) 50%,
+      transparent 70%
+    );
+  background-size: 200% 100%;
+  animation: canvas-shimmer 2s linear infinite;
+}
+
+/* Pulse glow: box-shadow inset on the overlay itself */
+.canvas-gen-glow {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: inset 0 0 40px 4px var(--color-accent, #534AB7);
+  animation: canvas-pulse-glow 2.2s ease-in-out infinite;
+}
+
+.canvas-img--failed .canvas-gen-glow {
+  box-shadow: inset 0 0 40px 4px var(--color-danger, #E11D48);
+}
+
+/* Spinner */
+.canvas-gen-spinner {
+  position: relative;
+  z-index: 1;
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--color-accent, #534AB7);
+  border-radius: 50%;
+  animation: canvas-spin 0.8s linear infinite;
+}
+
+.canvas-img--failed .canvas-gen-spinner {
+  display: none;
+}
+
+/* Timer pill */
+.canvas-gen-timer {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-sans);
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 6px 20px;
+  border-radius: 12px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.canvas-img--failed .canvas-gen-timer {
+  color: #fff;
+  background: rgba(200, 20, 40, 0.5);
+}
+
+/* Label */
+.canvas-gen-label {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.75);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.canvas-gen-fail-icon {
+  position: relative;
+  z-index: 1;
+  font-size: 36px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+}
+
+@keyframes canvas-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes canvas-pulse-glow {
+  0%, 100% { opacity: 0.25; }
+  50%      { opacity: 0.7; }
+}
+
+@keyframes canvas-spin {
+  to { transform: rotate(360deg); }
+}
+
 .canvas-placeholder {
   position: absolute;
   inset: 0;
@@ -224,6 +366,11 @@
     border-radius: 0;
     border: none;
     touch-action: none;
+  }
+
+  .canvas-img--generating .canvas-gen-overlay,
+  .canvas-img--failed .canvas-gen-overlay {
+    border-radius: 0;
   }
 
   .canvas-confirm-bar {

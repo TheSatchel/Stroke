@@ -43,6 +43,10 @@ export default class EventWirer {
       this._restoreRegionOverlays();
       const lineageFp = (lineage && lineage.fingerprint) || '';
       const isGenerating = !!(self._generatingFp && self._generatingFp === lineageFp);
+      const v = lineage && lineage.getVersion(item.versionActive);
+      if (isGenerating && !v && self._generatingStartTime) {
+        self.canvas.setGenerating(true, self._generatingStartTime);
+      }
       self.config.showPostGen(isGenerating);
       if (self._mobileNav) self._mobileNav.switchTo('canvas');
     };
@@ -72,6 +76,12 @@ export default class EventWirer {
       }
       self.config.setDownloadLineage(item.lineageId, versionIndex);
       this._restoreRegionOverlays();
+      const lineageFp = (lineage && lineage.fingerprint) || '';
+      const isGenerating = !!(self._generatingFp && self._generatingFp === lineageFp);
+      const v = lineage && lineage.getVersion(versionIndex);
+      if (isGenerating && !v && self._generatingStartTime) {
+        self.canvas.setGenerating(true, self._generatingStartTime);
+      }
       saveAppState(self);
       if (self._mobileNav) self._mobileNav.switchTo('canvas');
     };

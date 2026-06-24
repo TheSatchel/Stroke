@@ -18,6 +18,9 @@ export default class ToolManager {
     /** @type {HTMLButtonElement|null} */
     this.btnLas = null;
 
+    /** @type {HTMLButtonElement|null} */
+    this.btnRef = null;
+
     /** @type {HTMLElement|null} */
     this.tHint = null;
 
@@ -60,6 +63,26 @@ export default class ToolManager {
 
     this.toolbar.appendChild(this.btnSel);
     this.toolbar.appendChild(this.btnLas);
+
+    this.btnRef = el('button', 'tool-btn', {
+      id: 'btnRef',
+      title: '将当前画布图像设为参考图',
+      onclick: () => {
+        const dataUrl = canvas._userImageDataUrl || canvas._generatedImageDataUrl;
+        if (dataUrl && canvas.onCanvasImage) {
+          canvas.onCanvasImage(dataUrl);
+        }
+      }
+    });
+    const refIcon = iconSvg(13, 13, [
+      svgEl('rect', { x: '1.5', y: '2.5', width: '10', height: '8', rx: '1.5', stroke: 'currentColor', 'stroke-width': '1.3', fill: 'none' }),
+      svgEl('circle', { cx: '4.5', cy: '5.5', r: '1.2', stroke: 'currentColor', 'stroke-width': '0.8', fill: 'none' }),
+      svgEl('path', { d: 'M1.5 8.5l3-2.5 2 1.5L9.5 4l3 3', stroke: 'currentColor', 'stroke-width': '1', fill: 'none' })
+    ]);
+    this.btnRef.appendChild(refIcon);
+    this.btnRef.appendChild(document.createTextNode('参考图'));
+    this.toolbar.appendChild(this.btnRef);
+
     this.toolbar.appendChild(el('div', 'sflex'));
     this.tHint = el('span', '', {
       id: 'tHint',

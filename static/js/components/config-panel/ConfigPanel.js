@@ -224,17 +224,12 @@ export default class ConfigPanel {
   }
 
   doGen() {
-    if (window.__strokeApp && window.__strokeApp._generatingFp) {
-      showAlertModal('提示', '已有生成任务正在进行中，请等待当前任务完成');
-      return;
-    }
     if (this.onGenerate) this.onGenerate();
   }
 
   onGenComplete() {
     this.generating = false;
-    this.genBtn.textContent = '重新生成';
-    this.genBtn.disabled = false;
+    this._updateGenBtnState();
     this.exportBtn.style.display = '';
   }
 
@@ -249,9 +244,37 @@ export default class ConfigPanel {
       this.genBtn.disabled = true;
       this.exportBtn.style.display = 'none';
     } else {
+      this._updateGenBtnState();
+      this.exportBtn.style.display = '';
+    }
+  }
+
+  _collectCallWidgetConfigs() {
+    const configs = {};
+    for (const [k, w] of Object.entries(this.widgets || {})) {
+      if (w.def && w.def.type === 'generate_call' && w.widget && typeof w.widget.getConfig === 'function') {
+        configs[k] = w.widget.getConfig();
+      }
+    }
+    return configs;
+  }
+
+  _updateGenBtnState() {
+    if (this.generating) return;
+    const callWidgetConfigs = this._collectCallWidgetConfigs();
+    const app = window.__strokeApp;
+    if (!app || !app.scheduler) return;
+    const { canStart, blocked } = app.scheduler.checkConcurrency(callWidgetConfigs);
+    if (!canStart && blocked.length > 0) {
+      const totalLimit = blocked.reduce((s, b) => s + b.limit, 0);
+      const totalUsed = blocked.reduce((s, b) => s + b.used, 0);
+      this.genBtn.textContent = `并发满载 (${totalUsed}/${totalLimit})`;
+      this.genBtn.disabled = true;
+      this.genBtn.classList.add('gen-btn--full');
+    } else {
+      this.genBtn.classList.remove('gen-btn--full');
       this.genBtn.textContent = '重新生成';
       this.genBtn.disabled = false;
-      this.exportBtn.style.display = '';
     }
   }
 

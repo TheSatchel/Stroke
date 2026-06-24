@@ -14,23 +14,10 @@ import GenerationPipeline from './GenerationPipeline.js';
  * @param {import('../uis/App.js').default} app
  */
 export async function performGeneration(app) {
-  if (app._generatingFp) {
-    showAlertModal('提示', '已有生成任务正在进行中，请等待当前任务完成');
-    return;
-  }
-
   const tabsConfig = app.config.tabsConfig;
   const tabValues = app.config.getTabValues();
+  const scheduler = app.scheduler;
 
-  const contentFp = computeContentFingerprint(tabsConfig, tabValues);
-  app._generatingFp = contentFp;
-
-  app.config.generating = true;
-  app.config.genBtn.textContent = '生成中...';
-  app.config.genBtn.disabled = true;
-  if (app.config.exportBtn) app.config.exportBtn.style.display = 'none';
-
-  // 收集每个 generate_call widget 的完整配置
   const callWidgetConfigs = {};
   for (const [k, w] of Object.entries(app.config.widgets || {})) {
     if (w.def && w.def.type === 'generate_call' && w.widget && typeof w.widget.getConfig === 'function') {
@@ -38,93 +25,126 @@ export async function performGeneration(app) {
     }
   }
 
-  // 获取 manager 实例（由 App 构造函数注入）
-  const lineageManager = app._lineageManager;
+  const { canStart, blocked, available, configIds } = scheduler.checkConcurrency(callWidgetConfigs);
+  if (!canStart) {
+    const blockedNames = blocked.map(b => `「${b.name}」(${b.used}/${b.limit})`).join('、');
+    const availNames = available.map(a => `「${a.name}」(${a.used}/${a.limit})`).join('、');
+    const msg = `已达并发上限：${blockedNames}` + (availNames ? `\n仍有可用：${availNames}` : '');
+    showAlertModal('并发限制', msg);
+    return;
+  }
 
-  // ★ 先生成占位 lineage，让 HistoryPanel 显示「生成中」
-  const tabsToSave = tabsConfig.filter(tab => tab.unpersist !== true);
-  const { lineageId } = lineageManager.matchOrCreate(contentFp, {
-    tabValues,
-    tabsConfig: tabsToSave.map(t => ({ ...t })),
-    tabOrder: tabsConfig.map(t => t.id)
-  });
-  app.currentLineageId = lineageId;
-  app._rebuildHistoryItems();
-  app.history.render();
+  scheduler.acquire(configIds);
 
-  // 创建管线
-  const pipeline = new GenerationPipeline(app.generator, lineageManager, {
-    onSegmentStart(task, segmentIndex, totalSegments) {
-      const callWidgetEntry = app.config.widgets[task.callTabId];
-      const widget = callWidgetEntry ? callWidgetEntry.widget : null;
-      if (widget) {
-        widget.updateSummary(task.prompt || '(无 prompt)');
-        widget.setGenerating();
-        // 展示段进度
-        if (widget._resultPreview && typeof widget._resultPreview.setProgress === 'function') {
-          widget._resultPreview.setProgress(segmentIndex, totalSegments);
+  try {
+    const contentFp = computeContentFingerprint(tabsConfig, tabValues);
+    app._generatingFp = contentFp;
+
+    app.canvas.setGenerating(true);
+
+    app.config.generating = true;
+    app.config.genBtn.textContent = '生成中...';
+    app.config.genBtn.disabled = true;
+    if (app.config.exportBtn) app.config.exportBtn.style.display = 'none';
+
+    // 获取 manager 实例（由 App 构造函数注入）
+    const lineageManager = app._lineageManager;
+
+    // ★ 先生成占位 lineage，让 HistoryPanel 显示「生成中」
+    const tabsToSave = tabsConfig.filter(tab => tab.unpersist !== true);
+    const { lineageId } = lineageManager.matchOrCreate(contentFp, {
+      tabValues,
+      tabsConfig: tabsToSave.map(t => ({ ...t })),
+      tabOrder: tabsConfig.map(t => t.id)
+    });
+    app.currentLineageId = lineageId;
+    app._rebuildHistoryItems();
+    app.history.render();
+
+    // 创建管线
+    const pipeline = new GenerationPipeline(app.generator, lineageManager, {
+      onSegmentStart(task, segmentIndex, totalSegments) {
+        const callWidgetEntry = app.config.widgets[task.callTabId];
+        const widget = callWidgetEntry ? callWidgetEntry.widget : null;
+        if (widget) {
+          widget.updateSummary(task.prompt || '(无 prompt)');
+          widget.setGenerating();
+          // 展示段进度
+          if (widget._resultPreview && typeof widget._resultPreview.setProgress === 'function') {
+            widget._resultPreview.setProgress(segmentIndex, totalSegments);
+          }
+        }
+      },
+
+      onSegmentRetry(task, attempt, maxRetries, segmentIndex, totalSegments) {
+        const callWidgetEntry = app.config.widgets[task.callTabId];
+        const widget = callWidgetEntry ? callWidgetEntry.widget : null;
+        if (widget && widget._resultPreview && typeof widget._resultPreview.setRetrying === 'function') {
+          widget._resultPreview.setRetrying(attempt, maxRetries);
+        }
+      },
+
+      onSegmentDone(task) {
+        const callWidgetEntry = app.config.widgets[task.callTabId];
+        const widget = callWidgetEntry ? callWidgetEntry.widget : null;
+        if (widget && task.result) {
+          widget.setResult(
+            { type: task.result.type, svg: task.result.svg, dataUrl: task.result.dataUrl },
+            task.result.base64
+          );
+          widget.setDone();
+        }
+      },
+
+      onSegmentFail(task, err) {
+        const callWidgetEntry = app.config.widgets[task.callTabId];
+        const widget = callWidgetEntry ? callWidgetEntry.widget : null;
+        if (widget) {
+          widget.setDone();
+          widget.updateSummary('生成失败');
+        }
+        showToast('段生成失败: ' + (err.message || String(err)), 'error', 10000);
+      },
+
+      onAllDone(succeeded, totalSegments) {
+        const currentFp = computeContentFingerprint(app.config.tabsConfig, app.config.getTabValues());
+        const isStillViewing = app._generatingFp === currentFp;
+
+        if (succeeded === 0) {
+          showToast(`所有 ${totalSegments} 段生成均已失败`, 'error', 10000);
+          if (isStillViewing && app._generatingStartTime) {
+            app.canvas.setFailed(app._generatingStartTime);
+          }
+        } else if (isStillViewing) {
+          app.canvas.setGenerating(false);
         }
       }
-    },
+    });
 
-    onSegmentRetry(task, attempt, maxRetries, segmentIndex, totalSegments) {
-      const callWidgetEntry = app.config.widgets[task.callTabId];
-      const widget = callWidgetEntry ? callWidgetEntry.widget : null;
-      if (widget && widget._resultPreview && typeof widget._resultPreview.setRetrying === 'function') {
-        widget._resultPreview.setRetrying(attempt, maxRetries);
-      }
-    },
+    // 启动管线并等待完成
+    await pipeline.start(tabsConfig, tabValues, callWidgetConfigs);
 
-    onSegmentDone(task) {
-      const callWidgetEntry = app.config.widgets[task.callTabId];
-      const widget = callWidgetEntry ? callWidgetEntry.widget : null;
-      if (widget && task.result) {
-        widget.setResult(
-          { type: task.result.type, svg: task.result.svg, dataUrl: task.result.dataUrl },
-          task.result.base64
-        );
-        widget.setDone();
-      }
-    },
-
-    onSegmentFail(task, err) {
-      const callWidgetEntry = app.config.widgets[task.callTabId];
-      const widget = callWidgetEntry ? callWidgetEntry.widget : null;
-      if (widget) {
-        widget.setDone();
-        widget.updateSummary('生成失败');
-      }
-      showToast('段生成失败: ' + (err.message || String(err)), 'error', 10000);
-    },
-
-    onAllDone(succeeded, totalSegments) {
-      if (succeeded === 0) {
-        showToast(`所有 ${totalSegments} 段生成均已失败`, 'error', 10000);
-      }
-      const currentFp = computeContentFingerprint(app.config.tabsConfig, app.config.getTabValues());
-      if (app._generatingFp === currentFp) {
-        app.config.onGenComplete();
-      }
+    // 管线完成后保存 lineage
+    try {
+      await _onPipelineComplete(pipeline, app, lineageManager, tabValues, tabsConfig);
+    } catch (err) {
+      console.error('[Generator] lineage 保存失败:', err);
+      showToast('保存生成结果失败', 'error', 5000);
     }
-  });
 
-  // 启动管线并等待完成
-  await pipeline.start(tabsConfig, tabValues, callWidgetConfigs);
-
-  // 管线完成后保存 lineage
-  try {
-    await _onPipelineComplete(pipeline, app, lineageManager, tabValues, tabsConfig);
-  } catch (err) {
-    console.error('[Generator] lineage 保存失败:', err);
-    showToast('保存生成结果失败', 'error', 5000);
+    // 设置下载源为当前 lineage 版本
+    if (app.currentLineageId) {
+      app.config.setDownloadLineage(app.currentLineageId, app.currentVersionIndex);
+    }
+  } finally {
+    scheduler.release(configIds);
+    app.canvas.setGenerating(false);
+    if (scheduler.activeCount === 0) {
+      app._generatingFp = null;
+      app._generatingStartTime = null;
+      app.config.onGenComplete();
+    }
   }
-
-  // 设置下载源为当前 lineage 版本
-  if (app.currentLineageId) {
-    app.config.setDownloadLineage(app.currentLineageId, app.currentVersionIndex);
-  }
-
-  app._generatingFp = null;
 }
 
 /**
@@ -137,9 +157,6 @@ async function _onPipelineComplete(pipeline, app, lineageManager, tabValues, tab
 
   if (results.length === 0) {
     console.warn('[Generator] 没有成功的段结果');
-    if (app._generatingFp === computeContentFingerprint(tabsConfig, tabValues)) {
-      app.config.onGenComplete();
-    }
     return;
   }
 

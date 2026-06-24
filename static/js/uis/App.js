@@ -17,6 +17,7 @@ import { loadAppState } from '../locals/Persistence.js';
 import PersistenceGuard from '../locals/PersistenceGuard.js';
 import LineageManager from '../locals/LineageManager.js';
 import SegmentationService from '../services/SegmentationService.js';
+import GenerationScheduler from '../services/GenerationScheduler.js';
 import EventWirer from './EventWirer.js';
 import CanvasImageCoordinator from './CanvasImageCoordinator.js';
 import MobileNav from './MobileNav.js';
@@ -42,6 +43,8 @@ export default class App {
     this.currentVersionIndex = 0;
     this._regionCount = 0;
     this._generatingFp = null;
+
+    this.scheduler = new GenerationScheduler();
 
     this._lineageManager = new LineageManager(this.versionLineages);
     this._persistenceGuard = new PersistenceGuard(this);

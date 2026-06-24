@@ -333,13 +333,16 @@ export default class GenerationPipeline {
   }
 
   _getConcurrency() {
-    const firstTask = this.tasks[0];
-    if (!firstTask || !firstTask._callWidgetConfig || !firstTask._callWidgetConfig.configId) {
-      return 1;
-    }
     const allConfigs = loadConfigs();
-    const cfg = allConfigs.find(c => c.id === firstTask._callWidgetConfig.configId);
-    return (cfg && typeof cfg.concurrency === 'number' && cfg.concurrency > 0) ? cfg.concurrency : 1;
+    let minConcurrency = Infinity;
+    for (const task of this.tasks) {
+      if (!task._callWidgetConfig || !task._callWidgetConfig.configId) continue;
+      const cfg = allConfigs.find(c => c.id === task._callWidgetConfig.configId);
+      if (cfg && typeof cfg.concurrency === 'number' && cfg.concurrency > 0) {
+        minConcurrency = Math.min(minConcurrency, cfg.concurrency);
+      }
+    }
+    return minConcurrency === Infinity ? 1 : minConcurrency;
   }
 
   _cleanup() {
