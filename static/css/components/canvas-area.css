@@ -146,27 +146,6 @@
   display: none;
 }
 
-/* Timer pill */
-.canvas-gen-timer {
-  position: relative;
-  z-index: 1;
-  font-family: var(--font-sans);
-  font-size: 32px;
-  font-weight: 700;
-  letter-spacing: 3px;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.45);
-  padding: 6px 20px;
-  border-radius: 12px;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-
-.canvas-img--failed .canvas-gen-timer {
-  color: #fff;
-  background: rgba(200, 20, 40, 0.5);
-}
-
 /* Label */
 .canvas-gen-label {
   position: relative;

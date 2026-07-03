@@ -247,7 +247,7 @@ export default class DragManager {
     } catch (e) { /* ignore */ }
 
     if (!restored) {
-      setSizesVw(7.42, 7.42);
+      setSizesPx(340, 480);
     }
 
     const makeDragger = (handleEl, isLeft) => {
@@ -269,8 +269,9 @@ export default class DragManager {
         document.body.style.cursor = 'col-resize';
       };
 
-      const onMove = (clientX) => {
+      const onMove = (e) => {
         if (!dragging) return;
+        const clientX = e.clientX;
         ghost.style.left = clientX + 'px';
         const dx = clientX - startX;
         if (isLeft) {
@@ -302,7 +303,7 @@ export default class DragManager {
         if (!dragging || touchId === null) return;
         for (let i = 0; i < e.touches.length; i++) {
           if (e.touches[i].identifier === touchId) {
-            onMove(e.touches[i].clientX);
+            onMove({ clientX: e.touches[i].clientX });
             return;
           }
         }
