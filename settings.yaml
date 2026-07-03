@@ -1,18 +1,12 @@
 # ============================================================
-# FastAPI Jinja2 PWA 配置文件
+# Stroke — 静态站点配置文件
 # ============================================================
 
 app:
   name: "Stroke"
-  version: "0.1.4"
+  version: "0.2.0"
   debug: true
   path_prefix: ""          # CDN 模式改为 "/image"，通过环境变量 PATH_PREFIX 也可覆盖
-
-server:
-  host: "127.0.0.1"
-  port: 8000
-  workers: 4
-  mode: "asgi"
 
 # PWA 配置
 pwa:

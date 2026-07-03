@@ -21,13 +21,23 @@ AI 图像生成工作台 — 套索/点选/SegFormer 分割标注，可拖拽配
 ## 快速开始
 
 ```bash
-# Python 3.10+, 克隆后直接启动
+# 克隆项目
 git clone https://github.com/TheSatchel/Stroke.git && cd Stroke
-pip install -r requirements.txt
-python launch.py
+
+# 安装 PyYAML（构建所需唯一依赖）
+pip install pyyaml
+
+# 下载 AI 分割模型 + vendor 库，构建并启动开发服务器
+python build.py --download-model --serve
 ```
 
-启动后访问 `http://127.0.0.1:8000`，首次运行会自动下载 AI 分割模型（~190 MB）。
+启动后访问 `http://127.0.0.1:8000`。
+
+AI 分割模型首次下载约 190 MB。可跳过该步骤（AI 分割功能不可用）：
+
+```bash
+python build.py --serve
+```
 
 ```bash
 npm install && npm test       # 前端测试（可选）
@@ -35,21 +45,40 @@ npm install && npm test       # 前端测试（可选）
 
 ---
 
+## 构建与部署
+
+```bash
+python build.py               # 构建 dist/ 静态站点
+python build.py --prefix /app # 设置路径前缀（部署到子目录）
+npm run build                 # 等价于 python build.py
+npm run dev                   # 构建 + 本地开发服务器
+```
+
+产物 `dist/` 目录是完整的静态站点，可部署到任意静态服务器：
+
+```bash
+npx serve dist                # Node.js 静态服务器
+python -m http.server 8000 -d dist
+```
+
+支持 CDN、Nginx、GitHub Pages、Vercel 等部署方式。
+
+---
+
 ## 项目结构
 
 ```
-├── launch.py                  # 统一启动器（菜单 / CLI 参数）
-├── serve.py / development.py  # 服务器入口
+├── build.py                   # 静态站点构建脚本
 ├── settings.yaml              # 应用 & PWA 配置
-├── app/                       # FastAPI 后端（Jinja2 SSR）
+├── templates/index.html       # HTML 模板（构建时注入配置）
 ├── static/                    # 前端（Vanilla JS ES Modules, ITCSS）
 ├── scripts/                   # 模型下载等工具脚本
 ├── tests/                     # Vitest + jsdom
-└── templates/                 # Jinja2 HTML 模板
+└── dist/                      # 构建产物（gitignore）
 ```
 
 ---
 
-**技术栈**: FastAPI + Jinja2 / Vanilla JS + ITCSS / PWA + Service Worker / IndexedDB + localStorage
+**技术栈**: Vanilla JS + ITCSS / PWA + Service Worker / IndexedDB + localStorage
 
 **许可**: [GPL v2.0](LICENSE)

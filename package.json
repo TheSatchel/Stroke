@@ -4,13 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "python launch.py --dev",
-    "serve": "python launch.py --asgi",
-    "serve:wsgi": "python launch.py --wsgi",
-    "serve:cdn": "python launch.py --cdn --asgi",
-    "serve:cdn-wsgi": "python launch.py --cdn --wsgi",
-    "setup": "python launch.py --install",
-    "download-model": "python launch.py --download-model",
+    "dev": "python build.py --serve",
+    "build": "python build.py",
+    "preview": "python -m http.server 8000 -d dist",
+    "download-model": "python build.py --download-model",
     "test": "vitest run",
     "test:watch": "vitest"
   },
